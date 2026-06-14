@@ -3,10 +3,11 @@ name = "insuirance"
 edition = "2024.beta"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
 deepbook_predict = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/predict", rev = "predict-testnet-4-16" }
 deepbook = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/deepbook", rev = "predict-testnet-4-16" }
 
 [addresses]
 insuirance = "0x0"
-deepbook_predict = "0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138"
+
+[environments]
+testnet = "0xeb6d56e69e5687ab1a35d05b079a51886539ddd625ba0764e562119ed40c05c4"

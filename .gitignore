@@ -1,0 +1,4 @@
+contracts/build/
+node_modules/
+scripts/withdraw.ts
+.DS_Store

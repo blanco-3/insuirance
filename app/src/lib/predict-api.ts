@@ -78,6 +78,11 @@ export async function getActiveOracles(): Promise<OracleInfo[]> {
   return all.filter((o) => o.status === "active");
 }
 
+/** All oracles including settled */
+export async function getAllOracles(): Promise<OracleInfo[]> {
+  return get<OracleInfo[]>(`/predicts/${PREDICT_ID}/oracles`);
+}
+
 /** Positions held by a manager */
 export async function getManagerPositions(managerId: string): Promise<ManagerPosition[]> {
   return get<ManagerPosition[]>(`/managers/${managerId}/positions`);

@@ -1,258 +1,497 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import {
+  useSignAndExecuteTransaction,
+  useSuiClient,
+  useSuiClientQuery,
+} from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   PREDICT_ID,
   PREDICT_PACKAGE,
-  REGISTRY_ID,
   DUSDC_TYPE,
+  DUSDC_DECIMALS,
   DEMO_ORACLE_ID,
   BTC_ORACLES,
   computeStrike,
   formatUsd,
   formatDusdc,
   getOraclePrice,
-  getVaultSummary,
   type OraclePrice,
-  type VaultSummary,
 } from "@/lib/predict-api";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
+const CLOCK_ID = "0x6";
+const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 
-// Drop % options shown to user
 const DROP_OPTIONS = [
   { label: "5% drop", bps: 500n },
   { label: "10% drop", bps: 1000n },
   { label: "20% drop", bps: 2000n },
 ];
 
-// Oracle expiry options (pick nearest active)
-const ORACLE_OPTIONS = Object.entries(BTC_ORACLES).map(([date, id]) => ({
-  label: `Expires ${date}`,
-  id,
-  expiry: new Date(date + "T08:00:00Z").getTime(),
-}));
+const ORACLE_OPTIONS = Object.entries(BTC_ORACLES)
+  .filter(([date]) => new Date(date + "T08:00:00Z") > new Date())
+  .map(([date, id]) => ({
+    label: `Expires ${date}`,
+    id,
+    expiry: new Date(date + "T08:00:00Z").getTime(),
+  }));
 
 interface Props {
   address: string;
 }
 
 export function CoverForm({ address }: Props) {
-  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const { mutateAsync: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const client = useSuiClient();
 
+  // Manager state
+  const [managerId, setManagerId] = useState<string | null>(null);
+  const [managerBalance, setManagerBalance] = useState<bigint | null>(null);
+  const [loadingManager, setLoadingManager] = useState(true);
+
+  // Market data
   const [price, setPrice] = useState<OraclePrice | null>(null);
-  const [vault, setVault] = useState<VaultSummary | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
 
+  // Form state
   const [dropBps, setDropBps] = useState(500n);
-  const [oracleOption, setOracleOption] = useState(ORACLE_OPTIONS[1]); // D+9 default
-  const [coverAmount, setCoverAmount] = useState("100"); // DUSDC
-  const [slippage, setSlippage] = useState(2); // 2%
+  const [oracleOption, setOracleOption] = useState(ORACLE_OPTIONS[0] ?? null);
+  const [coverAmount, setCoverAmount] = useState("5");
+  const [depositAmount, setDepositAmount] = useState("5");
 
+  // UI state
   const [txDigest, setTxDigest] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"buy" | "deposit">("buy");
 
-  const fetchMarketData = useCallback(async () => {
-    setLoadingPrice(true);
+  // dUSDC wallet balance
+  const { data: dusdcCoins, refetch: refetchCoins } = useSuiClientQuery(
+    "getCoins",
+    { owner: address, coinType: DUSDC_TYPE },
+    { refetchInterval: 15_000 }
+  );
+  const walletCoins = dusdcCoins?.data ?? [];
+  const walletBalance = walletCoins.reduce((s, c) => s + BigInt(c.balance), 0n);
+
+  // Read manager dUSDC balance directly on-chain via devInspect
+  const fetchOnChainBalance = useCallback(
+    async (mgrId: string): Promise<bigint> => {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${PREDICT_PACKAGE}::predict_manager::balance`,
+        typeArguments: [DUSDC_TYPE],
+        arguments: [tx.object(mgrId)],
+      });
+      const result = await client.devInspectTransactionBlock({
+        transactionBlock: tx,
+        sender: address,
+      });
+      const bytes = result.results?.[0]?.returnValues?.[0]?.[0];
+      if (!bytes || bytes.length < 8) return 0n;
+      // u64 little-endian
+      let val = 0n;
+      for (let i = 7; i >= 0; i--) val = val * 256n + BigInt(bytes[i]);
+      return val;
+    },
+    [address, client]
+  );
+
+  // Load manager from localStorage, then verify on-chain
+  const loadManager = useCallback(async () => {
+    setLoadingManager(true);
     try {
-      const [p, v] = await Promise.all([
-        getOraclePrice(DEMO_ORACLE_ID),
-        getVaultSummary(),
-      ]);
-      setPrice(p);
-      setVault(v);
-    } catch (e) {
-      console.error("Market data fetch failed:", e);
+      const cached = localStorage.getItem(MANAGER_KEY(address));
+      if (cached) {
+        setManagerId(cached);
+        setManagerBalance(await fetchOnChainBalance(cached));
+        setLoadingManager(false);
+        return;
+      }
+      // Fallback: query events for PredictManagerCreated by this address
+      const events = await client.queryEvents({
+        query: {
+          MoveEventType: `${PREDICT_PACKAGE}::predict_manager::PredictManagerCreated`,
+        },
+        limit: 50,
+        order: "descending",
+      });
+      const found = events.data.find(
+        (e) => (e.parsedJson as any)?.owner === address
+      );
+      if (found) {
+        const id = (found.parsedJson as any)?.manager_id as string;
+        const normalized = id.startsWith("0x") ? id : `0x${id}`;
+        localStorage.setItem(MANAGER_KEY(address), normalized);
+        setManagerId(normalized);
+        setManagerBalance(await fetchOnChainBalance(normalized));
+      }
+    } catch {
+      // ignore
     } finally {
-      setLoadingPrice(false);
+      setLoadingManager(false);
     }
-  }, []);
+  }, [address, client, fetchOnChainBalance]);
 
   useEffect(() => {
-    fetchMarketData();
-    const interval = setInterval(fetchMarketData, 15_000);
-    return () => clearInterval(interval);
-  }, [fetchMarketData]);
+    loadManager();
+  }, [loadManager]);
+
+  // Fetch BTC price
+  useEffect(() => {
+    let cancelled = false;
+    async function fetch() {
+      setLoadingPrice(true);
+      try {
+        const p = await getOraclePrice(DEMO_ORACLE_ID);
+        if (!cancelled) setPrice(p);
+      } catch {}
+      finally { if (!cancelled) setLoadingPrice(false); }
+    }
+    fetch();
+    const t = setInterval(fetch, 15_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   const spotRaw = price ? BigInt(price.spot) : 0n;
   const strike = spotRaw > 0n ? computeStrike(spotRaw, dropBps) : 0n;
   const askRaw = price ? BigInt(price.ask) : 0n;
-
-  // quantity in DUSDC raw (decimals 6)
-  const quantityRaw = BigInt(Math.round(parseFloat(coverAmount || "0") * 1_000_000));
-
-  // estimated premium = ask * quantity / 1e6 * (1 + slippage%)
-  const estimatedPremiumRaw =
-    quantityRaw > 0n && askRaw > 0n
-      ? (askRaw * quantityRaw * BigInt(100 + slippage)) / (100n * 1_000_000n)
+  const coverRaw = BigInt(Math.round(parseFloat(coverAmount || "0") * 1_000_000));
+  const depositRaw = BigInt(Math.round(parseFloat(depositAmount || "0") * 1_000_000));
+  // premium = ask * quantity, +2% slippage guard
+  const estimatedPremium =
+    coverRaw > 0n && askRaw > 0n
+      ? (askRaw * coverRaw * 102n) / (100n * 1_000_000n)
       : 0n;
 
-  async function handleBuyCover() {
-    if (!INSUIRANCE_PACKAGE) {
-      setError("Package not deployed yet — set NEXT_PUBLIC_INSUIRANCE_PACKAGE");
-      return;
+  async function handleCreateManager() {
+    setError(null);
+    setTxDigest(null);
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${PREDICT_PACKAGE}::predict::create_manager`,
+        arguments: [],
+      });
+      const result = await signAndExecute({ transaction: tx });
+
+      // Fetch tx to find manager ID from event
+      const fullTx = await client.getTransactionBlock({
+        digest: result.digest,
+        options: { showEvents: true },
+      });
+      const event = fullTx.events?.find((e) =>
+        e.type.includes("PredictManagerCreated")
+      );
+      const rawId = (event?.parsedJson as any)?.manager_id as string | undefined;
+      if (rawId) {
+        const normalized = rawId.startsWith("0x") ? rawId : `0x${rawId}`;
+        localStorage.setItem(MANAGER_KEY(address), normalized);
+        setManagerId(normalized);
+        setManagerBalance(0n);
+        setTxDigest(result.digest);
+      } else {
+        setError("Manager created but could not find ID — refresh the page");
+      }
+    } catch (e: any) {
+      setError(e.message ?? "Transaction failed");
     }
-    if (quantityRaw === 0n) {
-      setError("Enter a cover amount");
+  }
+
+  async function handleDeposit() {
+    if (!managerId) return;
+    setError(null);
+    setTxDigest(null);
+
+    if (depositRaw === 0n) { setError("Enter deposit amount"); return; }
+    if (depositRaw > walletBalance) { setError("Insufficient dUSDC in wallet"); return; }
+
+    try {
+      const tx = new Transaction();
+
+      // Merge all coins into the first if needed
+      if (walletCoins.length > 1) {
+        tx.mergeCoins(
+          tx.object(walletCoins[0].coinObjectId),
+          walletCoins.slice(1).map((c) => tx.object(c.coinObjectId))
+        );
+      }
+      const [coin] = tx.splitCoins(tx.object(walletCoins[0].coinObjectId), [
+        tx.pure.u64(depositRaw),
+      ]);
+      tx.moveCall({
+        target: `${PREDICT_PACKAGE}::predict_manager::deposit`,
+        typeArguments: [DUSDC_TYPE],
+        arguments: [tx.object(managerId), coin],
+      });
+
+      const result = await signAndExecute({ transaction: tx });
+      setTxDigest(result.digest);
+      refetchCoins();
+      setManagerBalance(await fetchOnChainBalance(managerId));
+      setView("buy");
+    } catch (e: any) {
+      setError(e.message ?? "Deposit failed");
+    }
+  }
+
+  async function handleBuyCover() {
+    if (!managerId) { setError("Set up a manager first"); return; }
+    if (!INSUIRANCE_PACKAGE) { setError("Package not configured"); return; }
+    if (!oracleOption) { setError("No active oracle available"); return; }
+    if (coverRaw === 0n) { setError("Enter cover amount"); return; }
+    if (managerBalance !== null && estimatedPremium > managerBalance) {
+      setError("Insufficient manager balance — deposit more dUSDC first");
       return;
     }
     setError(null);
+    setTxDigest(null);
 
-    const tx = new Transaction();
+    try {
+      const tx = new Transaction();
+      const policy = tx.moveCall({
+        target: `${INSUIRANCE_PACKAGE}::policy::buy_cover`,
+        typeArguments: [DUSDC_TYPE],
+        arguments: [
+          tx.object(PREDICT_ID),
+          tx.object(managerId),
+          tx.object(oracleOption.id),
+          tx.pure.u64(strike),
+          tx.pure.u64(BigInt(oracleOption.expiry)),
+          tx.pure.u64(coverRaw),
+          tx.pure.u64(estimatedPremium),
+          tx.pure.vector("u8", Array.from(new TextEncoder().encode("BTC"))),
+          tx.object(CLOCK_ID),
+        ],
+      });
+      tx.transferObjects([policy], address);
 
-    // buy_cover<DUSDC>(predict, manager, oracle, strike, expiry, quantity, max_premium, asset, clock, ctx)
-    tx.moveCall({
-      target: `${INSUIRANCE_PACKAGE}::policy::buy_cover`,
-      typeArguments: [DUSDC_TYPE],
-      arguments: [
-        tx.object(PREDICT_ID),
-        tx.object(REGISTRY_ID), // manager — caller must pass their own PredictManager
-        tx.object(oracleOption.id),
-        tx.pure.u64(strike),
-        tx.pure.u64(BigInt(oracleOption.expiry)),
-        tx.pure.u64(quantityRaw),
-        tx.pure.u64(estimatedPremiumRaw),
-        tx.pure.vector("u8", Array.from(new TextEncoder().encode("BTC"))),
-        tx.object("0x6"), // Clock
-      ],
-    });
+      const result = await signAndExecute({ transaction: tx });
+      setTxDigest(result.digest);
+      setManagerBalance(await fetchOnChainBalance(managerId));
+    } catch (e: any) {
+      setError(e.message ?? "Transaction failed");
+    }
+  }
 
-    signAndExecute(
-      { transaction: tx },
-      {
-        onSuccess: (result) => {
-          setTxDigest(result.digest);
-        },
-        onError: (err) => {
-          setError(err.message);
-        },
-      }
+  if (loadingManager) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-gray-400">
+        Loading…
+      </div>
+    );
+  }
+
+  // Step 1: No manager yet
+  if (!managerId) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-lg">Set Up Your Account</h2>
+          <p className="text-sm text-gray-400 mt-1">
+            Create a PredictManager to start buying cover. One-time setup.
+          </p>
+        </div>
+        {error && (
+          <p className="text-sm text-red-400 bg-red-950/30 border border-red-800/40 rounded-lg px-4 py-2">
+            {error}
+          </p>
+        )}
+        {txDigest && (
+          <p className="text-sm text-green-400">Done! tx: {txDigest.slice(0, 16)}…</p>
+        )}
+        <button
+          onClick={handleCreateManager}
+          disabled={isPending}
+          className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-3 font-semibold transition-colors"
+        >
+          {isPending ? "Creating…" : "Create Manager"}
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left space-y-6">
-      {/* Market data bar */}
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
+      {/* Manager balance bar */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-400">BTC Spot</span>
-        <span className="font-mono font-semibold">
-          {loadingPrice ? "Loading…" : price ? formatUsd(BigInt(price.spot)) : "—"}
-        </span>
+        <span className="text-gray-400">Manager Balance</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-semibold">
+            {managerBalance !== null ? formatDusdc(managerBalance) : "—"}
+          </span>
+          <button
+            onClick={() => { setView(view === "deposit" ? "buy" : "deposit"); setError(null); }}
+            className="text-xs text-blue-400 hover:text-blue-300"
+          >
+            {view === "deposit" ? "← Back" : "+ Deposit"}
+          </button>
+        </div>
       </div>
 
-      {vault && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Vault Liquidity</span>
-          <span className="font-mono">{formatDusdc(vault.available_liquidity)}</span>
+      {/* Deposit panel */}
+      {view === "deposit" && (
+        <div className="space-y-3 border border-white/10 rounded-xl p-4">
+          <div className="text-sm text-gray-400">
+            Wallet: <span className="font-mono text-white">{formatDusdc(walletBalance)}</span>
+          </div>
+          <div className="flex rounded-lg border border-white/10 bg-white/5 overflow-hidden">
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              className="flex-1 bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
+              placeholder="5"
+            />
+            <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
+          </div>
+          {error && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
+          {txDigest && (
+            <p className="text-sm text-green-400">Deposited! tx: {txDigest.slice(0, 16)}…</p>
+          )}
+          <button
+            onClick={handleDeposit}
+            disabled={isPending || walletBalance === 0n}
+            className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-2.5 font-semibold text-sm transition-colors"
+          >
+            {isPending ? "Depositing…" : walletBalance === 0n ? "No dUSDC in wallet" : "Deposit"}
+          </button>
         </div>
       )}
 
-      <hr className="border-white/10" />
-
-      {/* Drop selector */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">Coverage Trigger</label>
-        <div className="flex gap-2">
-          {DROP_OPTIONS.map((o) => (
-            <button
-              key={o.bps.toString()}
-              onClick={() => setDropBps(o.bps)}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium border transition-colors ${
-                dropBps === o.bps
-                  ? "bg-blue-600 border-blue-500 text-white"
-                  : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-              }`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        {strike > 0n && (
-          <p className="text-xs text-gray-500">
-            Pays out if BTC settles at or below{" "}
-            <span className="text-white font-mono">{formatUsd(strike)}</span>
-          </p>
-        )}
-      </div>
-
-      {/* Expiry selector */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">Expiry</label>
-        <select
-          value={oracleOption.id}
-          onChange={(e) => {
-            const opt = ORACLE_OPTIONS.find((o) => o.id === e.target.value);
-            if (opt) setOracleOption(opt);
-          }}
-          className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-        >
-          {ORACLE_OPTIONS.map((o) => (
-            <option key={o.id} value={o.id} className="bg-gray-900">
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Cover amount */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">Cover Amount (DUSDC)</label>
-        <div className="flex rounded-lg border border-white/10 bg-white/5 overflow-hidden">
-          <input
-            type="number"
-            min="1"
-            value={coverAmount}
-            onChange={(e) => setCoverAmount(e.target.value)}
-            className="flex-1 bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
-            placeholder="100"
-          />
-          <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
-        </div>
-      </div>
-
-      {/* Premium estimate */}
-      {estimatedPremiumRaw > 0n && (
-        <div className="rounded-lg bg-blue-950/40 border border-blue-800/40 p-4 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Est. Premium</span>
-            <span className="font-mono">{formatDusdc(estimatedPremiumRaw)}</span>
+      {/* Buy cover form */}
+      {view === "buy" && (
+        <>
+          {/* BTC price */}
+          <div className="flex items-center justify-between text-sm border-t border-white/10 pt-4">
+            <span className="text-gray-400">BTC Spot</span>
+            <span className="font-mono font-semibold">
+              {loadingPrice ? "Loading…" : price ? formatUsd(BigInt(price.spot)) : "—"}
+            </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Strike</span>
-            <span className="font-mono">{strike > 0n ? formatUsd(strike) : "—"}</span>
+
+          {/* Drop selector */}
+          <div className="space-y-2">
+            <label className="text-sm text-gray-400">Coverage Trigger</label>
+            <div className="flex gap-2">
+              {DROP_OPTIONS.map((o) => (
+                <button
+                  key={o.bps.toString()}
+                  onClick={() => setDropBps(o.bps)}
+                  className={`flex-1 rounded-lg py-2 text-sm font-medium border transition-colors ${
+                    dropBps === o.bps
+                      ? "bg-blue-600 border-blue-500 text-white"
+                      : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {strike > 0n && (
+              <p className="text-xs text-gray-500">
+                Pays out if BTC settles at or below{" "}
+                <span className="text-white font-mono">{formatUsd(strike)}</span>
+              </p>
+            )}
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Slippage Guard</span>
-            <span className="font-mono">+{slippage}%</span>
+
+          {/* Expiry */}
+          {ORACLE_OPTIONS.length > 0 ? (
+            <div className="space-y-2">
+              <label className="text-sm text-gray-400">Expiry</label>
+              <select
+                value={oracleOption?.id ?? ""}
+                onChange={(e) => {
+                  const opt = ORACLE_OPTIONS.find((o) => o.id === e.target.value);
+                  if (opt) setOracleOption(opt);
+                }}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {ORACLE_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id} className="bg-gray-900">
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="text-sm text-yellow-500">No active oracles available</p>
+          )}
+
+          {/* Cover amount */}
+          <div className="space-y-2">
+            <label className="text-sm text-gray-400">Cover Amount</label>
+            <div className="flex rounded-lg border border-white/10 bg-white/5 overflow-hidden">
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={coverAmount}
+                onChange={(e) => setCoverAmount(e.target.value)}
+                className="flex-1 bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
+                placeholder="5"
+              />
+              <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
+            </div>
           </div>
-        </div>
+
+          {/* Premium estimate */}
+          {estimatedPremium > 0n && (
+            <div className="rounded-lg bg-blue-950/40 border border-blue-800/40 p-4 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Est. Premium</span>
+                <span className="font-mono">{formatDusdc(estimatedPremium)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Strike</span>
+                <span className="font-mono">{strike > 0n ? formatUsd(strike) : "—"}</span>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Error */}
+      {/* Error / Success */}
       {error && (
         <p className="text-sm text-red-400 bg-red-950/30 border border-red-800/40 rounded-lg px-4 py-2">
           {error}
         </p>
       )}
-
-      {/* Success */}
-      {txDigest && (
-        <div className="text-sm text-green-400 bg-green-950/30 border border-green-800/40 rounded-lg px-4 py-2 space-y-1">
+      {txDigest && view === "buy" && (
+        <div className="text-sm text-green-400 bg-green-950/30 border border-green-800/40 rounded-lg px-4 py-2">
           <p className="font-semibold">Cover purchased!</p>
           <p className="font-mono text-xs break-all">{txDigest}</p>
         </div>
       )}
 
       {/* Buy button */}
-      <button
-        onClick={handleBuyCover}
-        disabled={isPending || loadingPrice || quantityRaw === 0n}
-        className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 font-semibold text-white transition-colors"
-      >
-        {isPending ? "Signing…" : "Buy Cover"}
-      </button>
+      {view === "buy" && (
+        <button
+          onClick={handleBuyCover}
+          disabled={
+            isPending ||
+            loadingPrice ||
+            coverRaw === 0n ||
+            !oracleOption ||
+            ORACLE_OPTIONS.length === 0 ||
+            (managerBalance !== null && managerBalance === 0n)
+          }
+          className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 font-semibold transition-colors"
+        >
+          {isPending
+            ? "Signing…"
+            : managerBalance !== null && managerBalance === 0n
+            ? "Deposit dUSDC first"
+            : "Buy Cover"}
+        </button>
+      )}
 
       <p className="text-xs text-gray-600 text-center">
         Powered by DeepBook Predict · Sui Testnet

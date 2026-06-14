@@ -12,18 +12,7 @@ export const REGISTRY_ID = "0x43af00e6bbbd7e00614a23a2c3edfc3c22413040e0b975a7d8
 export const DUSDC_PACKAGE = "0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a";
 export const DUSDC_TYPE = `${DUSDC_PACKAGE}::dusdc::DUSDC`;
 export const DUSDC_DECIMALS = 6;
-export const TICK_SIZE = 1_000_000_000n; // $1,000 in oracle units
-
-// BTC Oracles (testnet, expires weekly Thursday 08:00 UTC)
-export const BTC_ORACLES: Record<string, string> = {
-  "2026-06-12": "0x195833aeee071530d2bdcd2e03916b7458d57c81ed540b82d6e1cb594bdf41f2",
-  "2026-06-19": "0x1368db417891e8c7d4a083e1daa1fed3b52d33d93dfe7324e37c5e15b6b6a872",
-  "2026-06-26": "0x5169649f6bf3ba756bbbef3a90a8e0da60883bbd7f0bb0fcb8acc2321ef6d63d",
-  "2026-07-03": "0x5b5f283a8decb5114958639a8d5903a925507eb65c75890c09dd7e4ef7801335",
-};
-// Demo oracle (soonest active)
-export const DEMO_ORACLE_ID = BTC_ORACLES["2026-06-19"];
-
+export const TICK_SIZE = 1_000_000_000n;
 export const MIN_STRIKE = 50_000_000_000_000n; // $50,000
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -31,20 +20,23 @@ export const MIN_STRIKE = 50_000_000_000_000n; // $50,000
 export interface VaultSummary {
   vault_balance: string;
   available_liquidity: string;
-  utilization: string;
+  utilization: number;
 }
 
 export interface OraclePrice {
   spot: string;
-  ask: string;
-  bid: string;
+  forward: string;
 }
 
+/** Normalized oracle info (API field oracle_id → id) */
 export interface OracleInfo {
   id: string;
-  expiry: string;
+  underlying_asset: string;
+  expiry: number;
   status: "active" | "settled" | string;
   settlement_price: string | null;
+  min_strike: number;
+  tick_size: number;
 }
 
 export interface ManagerPosition {
@@ -60,27 +52,46 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ─── API functions ────────────────────────────────────────────────────────
-
-/** Live spot / ask / bid for a given oracle */
-export async function getOraclePrice(oracleId: string): Promise<OraclePrice> {
-  return get<OraclePrice>(`/oracles/${oracleId}/prices`);
+/** Normalize raw API oracle object (oracle_id → id, numeric expiry) */
+function normalizeOracle(raw: any): OracleInfo {
+  return {
+    id: raw.oracle_id.startsWith("0x") ? raw.oracle_id : `0x${raw.oracle_id}`,
+    underlying_asset: raw.underlying_asset,
+    expiry: Number(raw.expiry),
+    status: raw.status,
+    settlement_price: raw.settlement_price ?? null,
+    min_strike: Number(raw.min_strike),
+    tick_size: Number(raw.tick_size),
+  };
 }
 
-/** Vault liquidity summary for the Predict pool */
+// ─── API functions ────────────────────────────────────────────────────────
+
+/** Latest spot price for a given oracle (API returns array, newest first) */
+export async function getOraclePrice(oracleId: string): Promise<OraclePrice> {
+  const events = await get<any[]>(`/oracles/${oracleId}/prices`);
+  if (!Array.isArray(events) || events.length === 0) throw new Error("No price data");
+  return { spot: String(events[0].spot), forward: String(events[0].forward) };
+}
+
+/** Vault liquidity summary */
 export async function getVaultSummary(): Promise<VaultSummary> {
   return get<VaultSummary>(`/predicts/${PREDICT_ID}/vault/summary`);
 }
 
-/** All oracles for the Predict, filtered to active only */
+/** Active oracles, sorted by expiry ascending */
 export async function getActiveOracles(): Promise<OracleInfo[]> {
-  const all = await get<OracleInfo[]>(`/predicts/${PREDICT_ID}/oracles`);
-  return all.filter((o) => o.status === "active");
+  const all = await get<any[]>(`/predicts/${PREDICT_ID}/oracles`);
+  return all
+    .filter((o) => o.status === "active" && Number(o.expiry) > Date.now())
+    .map(normalizeOracle)
+    .sort((a, b) => a.expiry - b.expiry);
 }
 
 /** All oracles including settled */
 export async function getAllOracles(): Promise<OracleInfo[]> {
-  return get<OracleInfo[]>(`/predicts/${PREDICT_ID}/oracles`);
+  const all = await get<any[]>(`/predicts/${PREDICT_ID}/oracles`);
+  return all.map(normalizeOracle);
 }
 
 /** Positions held by a manager */
@@ -88,18 +99,8 @@ export async function getManagerPositions(managerId: string): Promise<ManagerPos
   return get<ManagerPosition[]>(`/managers/${managerId}/positions`);
 }
 
-/** Manager balance */
-export async function getManagerBalance(managerId: string): Promise<{ balance: string }> {
-  return get<{ balance: string }>(`/managers/${managerId}`);
-}
-
 // ─── Strike computation (mirrors Move: compute_strike) ──────────────────
 
-/**
- * Compute strike rounded down to tick_size.
- * @param spotRaw spot price in oracle units (bigint)
- * @param dropBps basis points of drop, e.g. 500 = 5%
- */
 export function computeStrike(spotRaw: bigint, dropBps: bigint): bigint {
   const raw = (spotRaw * (10_000n - dropBps)) / 10_000n;
   const strike = (raw / TICK_SIZE) * TICK_SIZE;
@@ -107,17 +108,28 @@ export function computeStrike(spotRaw: bigint, dropBps: bigint): bigint {
 }
 
 /** Display: oracle units → USD string */
-export function formatUsd(raw: bigint | string): string {
+export function formatUsd(raw: bigint | string | number): string {
   const n = BigInt(raw);
-  // oracle units: 1e9 = $1,000 → 1e12 = $1,000,000
   const dollars = n / 1_000_000_000n;
   return `$${dollars.toLocaleString()}`;
 }
 
 /** Display: DUSDC raw → human (decimals 6) */
-export function formatDusdc(raw: bigint | string): string {
+export function formatDusdc(raw: bigint | string | number): string {
   const n = BigInt(raw);
   const whole = n / 1_000_000n;
   const frac = n % 1_000_000n;
   return `${whole.toLocaleString()}.${frac.toString().padStart(6, "0").replace(/0+$/, "") || "0"} DUSDC`;
+}
+
+/** Format expiry timestamp to readable string */
+export function formatExpiry(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
 }

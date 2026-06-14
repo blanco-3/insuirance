@@ -11,13 +11,13 @@ import {
   PREDICT_ID,
   PREDICT_PACKAGE,
   DUSDC_TYPE,
-  DUSDC_DECIMALS,
-  DEMO_ORACLE_ID,
-  BTC_ORACLES,
   computeStrike,
   formatUsd,
   formatDusdc,
+  formatExpiry,
   getOraclePrice,
+  getActiveOracles,
+  type OracleInfo,
   type OraclePrice,
 } from "@/lib/predict-api";
 
@@ -31,13 +31,6 @@ const DROP_OPTIONS = [
   { label: "20% drop", bps: 2000n },
 ];
 
-const ORACLE_OPTIONS = Object.entries(BTC_ORACLES)
-  .filter(([date]) => new Date(date + "T08:00:00Z") > new Date())
-  .map(([date, id]) => ({
-    label: `Expires ${date}`,
-    id,
-    expiry: new Date(date + "T08:00:00Z").getTime(),
-  }));
 
 interface Props {
   address: string;
@@ -53,12 +46,13 @@ export function CoverForm({ address }: Props) {
   const [loadingManager, setLoadingManager] = useState(true);
 
   // Market data
+  const [oracles, setOracles] = useState<OracleInfo[]>([]);
   const [price, setPrice] = useState<OraclePrice | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
 
   // Form state
   const [dropBps, setDropBps] = useState(500n);
-  const [oracleOption, setOracleOption] = useState(ORACLE_OPTIONS[0] ?? null);
+  const [oracleOption, setOracleOption] = useState<OracleInfo | null>(null);
   const [coverAmount, setCoverAmount] = useState("5");
   const [depositAmount, setDepositAmount] = useState("5");
 
@@ -139,32 +133,39 @@ export function CoverForm({ address }: Props) {
     loadManager();
   }, [loadManager]);
 
-  // Fetch BTC price
+  // Load active oracles on mount
   useEffect(() => {
+    getActiveOracles()
+      .then((list) => {
+        setOracles(list);
+        if (list.length > 0) setOracleOption(list[0]);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch price for selected oracle
+  useEffect(() => {
+    if (!oracleOption) return;
     let cancelled = false;
-    async function fetch() {
+    async function fetchPrice() {
       setLoadingPrice(true);
       try {
-        const p = await getOraclePrice(DEMO_ORACLE_ID);
+        const p = await getOraclePrice(oracleOption!.id);
         if (!cancelled) setPrice(p);
       } catch {}
       finally { if (!cancelled) setLoadingPrice(false); }
     }
-    fetch();
-    const t = setInterval(fetch, 15_000);
+    fetchPrice();
+    const t = setInterval(fetchPrice, 15_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, []);
+  }, [oracleOption?.id]);
 
   const spotRaw = price ? BigInt(price.spot) : 0n;
   const strike = spotRaw > 0n ? computeStrike(spotRaw, dropBps) : 0n;
-  const askRaw = price ? BigInt(price.ask) : 0n;
   const coverRaw = BigInt(Math.round(parseFloat(coverAmount || "0") * 1_000_000));
   const depositRaw = BigInt(Math.round(parseFloat(depositAmount || "0") * 1_000_000));
-  // premium = ask * quantity, +2% slippage guard
-  const estimatedPremium =
-    coverRaw > 0n && askRaw > 0n
-      ? (askRaw * coverRaw * 102n) / (100n * 1_000_000n)
-      : 0n;
+  // max_premium slippage guard: 20% of cover amount (binary options cost << notional)
+  const maxPremium = (coverRaw * 20n) / 100n;
 
   async function handleCreateManager() {
     setError(null);
@@ -242,7 +243,7 @@ export function CoverForm({ address }: Props) {
     if (!INSUIRANCE_PACKAGE) { setError("Package not configured"); return; }
     if (!oracleOption) { setError("No active oracle available"); return; }
     if (coverRaw === 0n) { setError("Enter cover amount"); return; }
-    if (managerBalance !== null && estimatedPremium > managerBalance) {
+    if (managerBalance !== null && maxPremium > managerBalance) {
       setError("Insufficient manager balance — deposit more dUSDC first");
       return;
     }
@@ -261,7 +262,7 @@ export function CoverForm({ address }: Props) {
           tx.pure.u64(strike),
           tx.pure.u64(BigInt(oracleOption.expiry)),
           tx.pure.u64(coverRaw),
-          tx.pure.u64(estimatedPremium),
+          tx.pure.u64(maxPremium),
           tx.pure.vector("u8", Array.from(new TextEncoder().encode("BTC"))),
           tx.object(CLOCK_ID),
         ],
@@ -403,26 +404,26 @@ export function CoverForm({ address }: Props) {
           </div>
 
           {/* Expiry */}
-          {ORACLE_OPTIONS.length > 0 ? (
+          {oracles.length > 0 ? (
             <div className="space-y-2">
               <label className="text-sm text-gray-400">Expiry</label>
               <select
                 value={oracleOption?.id ?? ""}
                 onChange={(e) => {
-                  const opt = ORACLE_OPTIONS.find((o) => o.id === e.target.value);
+                  const opt = oracles.find((o) => o.id === e.target.value);
                   if (opt) setOracleOption(opt);
                 }}
                 className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
               >
-                {ORACLE_OPTIONS.map((o) => (
+                {oracles.map((o) => (
                   <option key={o.id} value={o.id} className="bg-gray-900">
-                    {o.label}
+                    {o.underlying_asset} · {formatExpiry(o.expiry)}
                   </option>
                 ))}
               </select>
             </div>
           ) : (
-            <p className="text-sm text-yellow-500">No active oracles available</p>
+            <p className="text-sm text-yellow-500">Loading oracles…</p>
           )}
 
           {/* Cover amount */}
@@ -442,16 +443,16 @@ export function CoverForm({ address }: Props) {
             </div>
           </div>
 
-          {/* Premium estimate */}
-          {estimatedPremium > 0n && (
+          {/* Summary */}
+          {coverRaw > 0n && strike > 0n && (
             <div className="rounded-lg bg-blue-950/40 border border-blue-800/40 p-4 space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Est. Premium</span>
-                <span className="font-mono">{formatDusdc(estimatedPremium)}</span>
+                <span className="text-gray-400">Strike</span>
+                <span className="font-mono">{formatUsd(strike)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Strike</span>
-                <span className="font-mono">{strike > 0n ? formatUsd(strike) : "—"}</span>
+                <span className="text-gray-400">Max Premium</span>
+                <span className="font-mono">{formatDusdc(maxPremium)}</span>
               </div>
             </div>
           )}
@@ -480,7 +481,7 @@ export function CoverForm({ address }: Props) {
             loadingPrice ||
             coverRaw === 0n ||
             !oracleOption ||
-            ORACLE_OPTIONS.length === 0 ||
+            oracles.length === 0 ||
             (managerBalance !== null && managerBalance === 0n)
           }
           className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 font-semibold transition-colors"

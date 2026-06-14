@@ -3,6 +3,7 @@
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import { CoverForm } from "@/components/CoverForm";
 import { PolicyList } from "@/components/PolicyList";
+import { Dashboard } from "@/components/Dashboard";
 
 export default function Home() {
   const account = useCurrentAccount();
@@ -34,6 +35,7 @@ export default function Home() {
 
           {account ? (
             <>
+              <Dashboard address={account.address} />
               <CoverForm address={account.address} />
               <PolicyList address={account.address} />
             </>

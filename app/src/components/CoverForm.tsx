@@ -46,9 +46,10 @@ const COLOR_MAP: Record<string, { active: string; hover: string; ring: string }>
 
 interface Props {
   address: string;
+  suggestedCover?: string;
 }
 
-export function CoverForm({ address }: Props) {
+export function CoverForm({ address, suggestedCover }: Props) {
   const { mutateAsync: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const client = useSuiClient();
 
@@ -63,10 +64,12 @@ export function CoverForm({ address }: Props) {
   const [loadingPrice, setLoadingPrice] = useState(true);
 
   // Form state
-  const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(new Set(["1000"]));
-  const [activeStrategy, setActiveStrategy] = useState<string | null>("Balanced");
+  const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(
+    suggestedCover ? new Set(["500", "1000", "2000"]) : new Set(["1000"])
+  );
+  const [activeStrategy, setActiveStrategy] = useState<string | null>(suggestedCover ? "Full Ladder" : "Balanced");
   const [oracleOption, setOracleOption] = useState<OracleInfo | null>(null);
-  const [coverAmount, setCoverAmount] = useState("5");
+  const [coverAmount, setCoverAmount] = useState(suggestedCover ?? "5");
   const [depositAmount, setDepositAmount] = useState("5");
 
   // UI state

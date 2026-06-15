@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import { CoverForm } from "@/components/CoverForm";
 import { PolicyList } from "@/components/PolicyList";
 import { Dashboard } from "@/components/Dashboard";
+import { HedgeCalculator } from "@/components/HedgeCalculator";
 
 export default function Home() {
   const account = useCurrentAccount();
+  const [suggestedCover, setSuggestedCover] = useState<string | undefined>();
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -29,24 +32,24 @@ export default function Home() {
               Protect Your Crypto.
             </h1>
             <p className="text-gray-400 text-lg">
-              Buy downside cover on BTC. Settle onchain.
+              Parametric downside cover. Settles onchain, automatically.
             </p>
           </div>
 
           {account ? (
             <>
               <Dashboard address={account.address} />
-              <CoverForm address={account.address} />
+              <HedgeCalculator onHedge={setSuggestedCover} />
+              <CoverForm address={account.address} suggestedCover={suggestedCover} />
               <PolicyList address={account.address} />
             </>
           ) : (
             <div className="space-y-6">
-              {/* Value prop cards */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { icon: "🛡️", title: "Parametric", desc: "Automatic payout — no claims process" },
+                  { icon: "🛡️", title: "Parametric", desc: "Auto payout — no claims process" },
                   { icon: "⛓️", title: "On-chain", desc: "Settled trustlessly by oracle" },
-                  { icon: "🎯", title: "Multi-trigger", desc: "Stack coverage at multiple levels" },
+                  { icon: "🎯", title: "Multi-trigger", desc: "Stack coverage at every level" },
                 ].map((c) => (
                   <div key={c.title} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center space-y-1">
                     <div className="text-2xl">{c.icon}</div>
@@ -55,6 +58,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              <HedgeCalculator />
               <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-4">
                 <p className="text-gray-400">Connect your wallet to start buying cover.</p>
                 <ConnectButton />

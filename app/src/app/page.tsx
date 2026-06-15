@@ -40,9 +40,25 @@ export default function Home() {
               <PolicyList address={account.address} />
             </>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-4">
-              <p className="text-gray-400">Connect your wallet to get started.</p>
-              <ConnectButton />
+            <div className="space-y-6">
+              {/* Value prop cards */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { icon: "🛡️", title: "Parametric", desc: "Automatic payout — no claims process" },
+                  { icon: "⛓️", title: "On-chain", desc: "Settled trustlessly by oracle" },
+                  { icon: "🎯", title: "Multi-trigger", desc: "Stack coverage at multiple levels" },
+                ].map((c) => (
+                  <div key={c.title} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center space-y-1">
+                    <div className="text-2xl">{c.icon}</div>
+                    <p className="text-sm font-semibold">{c.title}</p>
+                    <p className="text-xs text-gray-500">{c.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-4">
+                <p className="text-gray-400">Connect your wallet to start buying cover.</p>
+                <ConnectButton />
+              </div>
             </div>
           )}
         </div>

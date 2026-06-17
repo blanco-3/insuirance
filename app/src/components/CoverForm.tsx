@@ -136,6 +136,15 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   useEffect(() => { loadManager(); }, [loadManager]);
 
+  // Sync when parent calculator pushes a suggestion
+  useEffect(() => {
+    if (!suggestedCover) return;
+    setCoverAmount(suggestedCover);
+    setActiveStrategy("Full Ladder");
+    setSelectedTriggers(new Set(["500", "1000", "2000"]));
+    setView("buy");
+  }, [suggestedCover]);
+
   useEffect(() => {
     getActiveOracles()
       .then((list) => {

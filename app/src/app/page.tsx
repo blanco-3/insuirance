@@ -59,9 +59,27 @@ export default function Home() {
                 ))}
               </div>
               <HedgeCalculator />
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-4">
-                <p className="text-gray-400">Connect your wallet to start buying cover.</p>
-                <ConnectButton />
+              {/* How it works */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <p className="text-sm font-semibold text-gray-300">How it works</p>
+                <div className="space-y-3">
+                  {[
+                    { n: "1", title: "Calculate your exposure", desc: "Enter your BTC holdings above to see your downside risk." },
+                    { n: "2", title: "Pick a strategy", desc: "Choose Conservative, Balanced, Black Swan — or stack all three with Full Ladder." },
+                    { n: "3", title: "Cover pays out automatically", desc: "If BTC settles below your strike at expiry, you receive dUSDC. No claims, no humans." },
+                  ].map((s) => (
+                    <div key={s.n} className="flex gap-3">
+                      <span className="w-6 h-6 rounded-full bg-blue-600 text-xs flex items-center justify-center shrink-0 mt-0.5">{s.n}</span>
+                      <div>
+                        <p className="text-sm font-medium">{s.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-2 text-center">
+                  <ConnectButton />
+                </div>
               </div>
             </div>
           )}

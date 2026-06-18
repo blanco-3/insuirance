@@ -19,7 +19,10 @@ export const MIN_STRIKE = 50_000_000_000_000n; // $50,000
 
 export interface VaultSummary {
   vault_balance: string;
+  vault_value: string;
   available_liquidity: string;
+  plp_total_supply: string;
+  plp_share_price: number;  // dUSDC per 1 PLP unit (already decimal, e.g. 1.000994)
   utilization: number;
 }
 
@@ -42,6 +45,15 @@ export interface OracleInfo {
 export interface ManagerPosition {
   market_key: string;
   quantity: string;
+}
+
+/** Scaled SVI parameters (all values already divided by 1e9, signs applied) */
+export interface SVIParams {
+  a: number;
+  b: number;
+  rho: number;
+  m: number;
+  sigma: number;
 }
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────
@@ -97,6 +109,67 @@ export async function getAllOracles(): Promise<OracleInfo[]> {
 /** Positions held by a manager */
 export async function getManagerPositions(managerId: string): Promise<ManagerPosition[]> {
   return get<ManagerPosition[]>(`/managers/${managerId}/positions`);
+}
+
+/** Latest SVI params for an oracle. Throws if no data available. */
+export async function getOracleSVI(oracleId: string): Promise<SVIParams> {
+  const records = await get<any[]>(`/oracles/${oracleId}/svi`);
+  if (!Array.isArray(records) || records.length === 0) throw new Error("No SVI data");
+  const r = records[0];
+  return {
+    a:     r.a     / 1e9,
+    b:     r.b     / 1e9,
+    rho:   r.rho   / 1e9 * (r.rho_negative ? -1 : 1),
+    m:     r.m     / 1e9 * (r.m_negative   ? -1 : 1),
+    sigma: r.sigma / 1e9,
+  };
+}
+
+// ─── SVI + Black's formula ────────────────────────────────────────────────
+
+/** Abramowitz & Stegun approximation (max error 7.5e-8) */
+function normCDF(x: number): number {
+  const t = 1.0 / (1.0 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422819 * Math.exp(-x * x / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.8212560 + t * 1.3302744))));
+  return x >= 0 ? 1 - p : p;
+}
+
+/**
+ * Compute fair premium for a binary DOWN option using SVI.
+ *
+ * @param params    - SVI params (from getOracleSVI)
+ * @param forwardRaw - forward price in oracle units (from OraclePrice.forward)
+ * @param strikeRaw  - strike in oracle units (tick-aligned)
+ * @param expiryMs   - oracle expiry timestamp in ms
+ * @param quantityRaw - contracts in dUSDC units (6 decimals)
+ * @returns fair premium in dUSDC units (6 decimals)
+ */
+export function computeFairPremium(
+  params: SVIParams,
+  forwardRaw: bigint,
+  strikeRaw: bigint,
+  expiryMs: number,
+  quantityRaw: bigint,
+): bigint {
+  const T = (expiryMs - Date.now()) / (365.25 * 24 * 3600 * 1000);
+  if (T <= 0) return 0n;
+
+  const k = Math.log(Number(strikeRaw) / Number(forwardRaw));
+  const { a, b, rho, m, sigma } = params;
+  const w = a + b * (rho * (k - m) + Math.sqrt((k - m) ** 2 + sigma ** 2));
+  if (w <= 0) return 0n;
+
+  const d2 = -k / Math.sqrt(w) - Math.sqrt(w) / 2;
+  const prob = normCDF(-d2);
+
+  const fair = BigInt(Math.round(prob * Number(quantityRaw)));
+
+  // Minimum premium floor: 0.1% of cover notional.
+  // Prevents max_premium = 0 on very short-dated oracles (T < 1 hour), which
+  // would cause an EPremiumTooHigh abort on-chain because mint_cost > 0 > max_premium.
+  const floor = quantityRaw / 1000n;
+  return fair > floor ? fair : floor;
 }
 
 // ─── Strike computation (mirrors Move: compute_strike) ──────────────────

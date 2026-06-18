@@ -16,8 +16,11 @@ import {
   formatDusdc,
   getOraclePrice,
   getActiveOracles,
+  getOracleSVI,
+  computeFairPremium,
   type OracleInfo,
   type OraclePrice,
+  type SVIParams,
 } from "@/lib/predict-api";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
@@ -62,6 +65,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [oracles, setOracles] = useState<OracleInfo[]>([]);
   const [price, setPrice] = useState<OraclePrice | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
+  const [sviParams, setSviParams] = useState<SVIParams | null>(null);
 
   // Form state
   const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(
@@ -170,6 +174,15 @@ export function CoverForm({ address, suggestedCover }: Props) {
     return () => { cancelled = true; clearInterval(t); };
   }, [oracleOption?.id]);
 
+  // Fetch SVI params when oracle changes
+  useEffect(() => {
+    if (!oracleOption) return;
+    setSviParams(null);
+    getOracleSVI(oracleOption.id)
+      .then(setSviParams)
+      .catch(() => {}); // SVI unavailable — fall back to fixed slippage
+  }, [oracleOption?.id]);
+
   function toggleTrigger(bps: bigint) {
     const key = bps.toString();
     setActiveStrategy(null);
@@ -187,11 +200,23 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }
 
   const spotRaw = price ? BigInt(price.spot) : 0n;
+  const forwardRaw = price ? BigInt(price.forward) : 0n;
   const coverRaw = BigInt(Math.round(parseFloat(coverAmount || "0") * 1_000_000));
   const depositRaw = BigInt(Math.round(parseFloat(depositAmount || "0") * 1_000_000));
 
   const activeTriggers = TRIGGERS.filter((t) => selectedTriggers.has(t.bps.toString()));
-  const totalMaxPremium = (coverRaw * 20n) / 100n * BigInt(activeTriggers.length);
+
+  /** Per-trigger max premium: SVI fair price × 1.15 if available, else 20% of cover */
+  function getMaxPremium(bps: bigint): bigint {
+    if (sviParams && forwardRaw > 0n && oracleOption) {
+      const strike = computeStrike(spotRaw, bps);
+      const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
+      if (fair > 0n) return (fair * 115n) / 100n; // 15% slippage buffer
+    }
+    return (coverRaw * 20n) / 100n; // fallback: 20% of cover
+  }
+
+  const totalMaxPremium = activeTriggers.reduce((acc, t) => acc + getMaxPremium(t.bps), 0n);
 
   async function handleCreateManager() {
     setError(null); setTxDigest(null);
@@ -219,6 +244,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
     setError(null); setTxDigest(null);
     if (depositRaw === 0n) { setError("Enter deposit amount"); return; }
     if (depositRaw > walletBalance) { setError("Insufficient dUSDC in wallet"); return; }
+    if (walletCoins.length === 0) { setError("No dUSDC coins found in wallet"); return; }
     try {
       const tx = new Transaction();
       if (walletCoins.length > 1) {
@@ -247,6 +273,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
     if (!oracleOption) { setError("No active oracle available"); return; }
     if (coverRaw === 0n) { setError("Enter cover amount"); return; }
     if (activeTriggers.length === 0) { setError("Select at least one trigger"); return; }
+    if (totalMaxPremium === 0n) {
+      setError("Could not compute premium — oracle may be expired or price unavailable");
+      return;
+    }
     if (managerBalance !== null && totalMaxPremium > managerBalance) {
       setError("Insufficient manager balance — deposit more dUSDC first");
       return;
@@ -260,7 +290,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
       for (const trigger of activeTriggers) {
         const strike = computeStrike(spotRaw, trigger.bps);
-        const maxPremium = (coverRaw * 20n) / 100n;
+        const maxPremium = getMaxPremium(trigger.bps);
         const policy = tx.moveCall({
           target: `${INSUIRANCE_PACKAGE}::policy::buy_cover`,
           typeArguments: [DUSDC_TYPE],
@@ -496,7 +526,12 @@ export function CoverForm({ address, suggestedCover }: Props) {
                   <p className="font-semibold text-white">{activeTriggers.length}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-gray-500">Max Premium</p>
+                  <p className="text-gray-500">
+                    Max Premium{" "}
+                    {sviParams
+                      ? <span className="text-emerald-500">SVI</span>
+                      : <span className="text-gray-600">est.</span>}
+                  </p>
                   <p className="font-semibold text-yellow-400">{formatDusdc(totalMaxPremium)}</p>
                 </div>
               </div>

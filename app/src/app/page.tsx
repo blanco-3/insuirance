@@ -164,6 +164,14 @@ export default function Home() {
                   fill="none"
                 />
               </svg>
+              {/* Bottom fade — storm dissolves seamlessly into page background */}
+              <div
+                className="absolute bottom-0 left-0 right-0 pointer-events-none"
+                style={{
+                  height: 100,
+                  background: "linear-gradient(to bottom, transparent 0%, rgba(8,20,44,0.70) 55%, rgba(10,31,53,0.97) 100%)",
+                }}
+              />
             </div>
 
             {/* Text — must be relative+z-index to paint above absolute storm scene */}

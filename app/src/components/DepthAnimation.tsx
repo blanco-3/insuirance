@@ -64,7 +64,15 @@ function drawFrame(
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     ctx.closePath();
-    ctx.fillStyle = `rgba(${l.r},${l.g},${l.b},${l.a * intensity + 0.02})`;
+
+    // Gradient fill: wave colour at crest → seamless deep-black at bottom
+    const wGrad = ctx.createLinearGradient(0, yb - amp, 0, h);
+    const a0 = l.a * intensity + 0.02;
+    wGrad.addColorStop(0,    `rgba(${l.r},${l.g},${l.b},${a0.toFixed(3)})`);
+    wGrad.addColorStop(0.28, `rgba(${Math.max(0,l.r-5)},${Math.max(0,l.g-18)},${Math.max(0,l.b-26)},${(a0*0.82).toFixed(3)})`);
+    wGrad.addColorStop(0.60, `rgba(2,9,24,${(a0*0.68).toFixed(3)})`);
+    wGrad.addColorStop(1,    `rgba(1,4,11,${(0.94*intensity+0.05).toFixed(3)})`);
+    ctx.fillStyle = wGrad;
     ctx.fill();
   }
 
@@ -83,6 +91,16 @@ function drawFrame(
       ctx.fill();
     }
   }
+
+  // ── Abyss gradient — seamless fade from wave base into deep black ──
+  const abyssGrad = ctx.createLinearGradient(0, h * 0.38, 0, h);
+  abyssGrad.addColorStop(0,    "rgba(1,5,14,0)");
+  abyssGrad.addColorStop(0.22, "rgba(1,5,13,0.28)");
+  abyssGrad.addColorStop(0.50, "rgba(1,4,11,0.64)");
+  abyssGrad.addColorStop(0.78, "rgba(1,3,10,0.86)");
+  abyssGrad.addColorStop(1,    "rgba(1,3,9,0.97)");
+  ctx.fillStyle = abyssGrad;
+  ctx.fillRect(0, h * 0.38, w, h * 0.62);
 }
 
 // ── Diver SVG silhouette ─────────────────────────────────────────────────────
@@ -96,12 +114,11 @@ function Diver({ glowing, angle }: { glowing: boolean; angle: number }) {
       xmlns="http://www.w3.org/2000/svg"
       style={{
         transform: `rotate(${angle}deg)`,
-        transition: "transform 2600ms ease",
         filter: glowing
           ? "drop-shadow(0 0 14px rgba(0,212,255,1)) drop-shadow(0 0 30px rgba(0,212,255,0.55))"
           : "drop-shadow(0 6px 10px rgba(0,0,0,0.7))",
-        transition2: "filter 1800ms ease",
-      } as React.CSSProperties}
+        transition: "transform 2600ms ease, filter 1800ms ease",
+      }}
     >
       {/* Air tank */}
       <rect x="32" y="27" width="10" height="24" rx="4" fill="rgba(130,200,220,0.88)" />
@@ -256,14 +273,31 @@ export function DepthAnimation({ type, onDone }: Props) {
         transition: "opacity 700ms ease",
       }}
     >
-      {/* ── Deep ocean base background ─────────────────────────────── */}
+      {/* ── Storm background (fades out as we descend) ─────────────── */}
       <div
         className="absolute inset-0"
         style={{
-          background: bgDark
-            ? "linear-gradient(to bottom, #010d1c 0%, #010810 55%, #020608 100%)"
-            : "linear-gradient(to bottom, #0e3558 0%, #071a30 45%, #030d1e 100%)",
-          transition: "background 3000ms ease",
+          background: "linear-gradient(to bottom, #0e3558 0%, #061a30 40%, #030d1e 72%, #01080f 100%)",
+          opacity: bgDark ? 0 : 1,
+          transition: "opacity 2800ms ease",
+        }}
+      />
+      {/* ── Deep ocean background (fades in) ────────────────────────── */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: "linear-gradient(to bottom, #010d1c 0%, #010810 35%, #010609 68%, #020508 100%)",
+          opacity: bgDark ? 1 : 0,
+          transition: "opacity 2800ms ease",
+        }}
+      />
+      {/* ── Mid-water pressure gradient (appears while diving) ───────── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "linear-gradient(to bottom, transparent 0%, rgba(0,6,18,0) 20%, rgba(0,5,14,0.50) 55%, rgba(1,4,12,0.88) 100%)",
+          opacity: phase === "diving" || phase === "deep" || phase === "success" ? 1 : 0,
+          transition: "opacity 2200ms ease",
         }}
       />
 
@@ -303,20 +337,15 @@ export function DepthAnimation({ type, onDone }: Props) {
         }}
       />
 
-      {/* ── Horizontal depth lines ──────────────────────────────────── */}
-      {[0,1,2,3,4,5].map((i) => (
-        <div
-          key={i}
-          className="absolute left-0 right-0"
-          style={{
-            top: `${16 + i * 13}%`,
-            height: 1,
-            background: `rgba(0,170,255,${Math.max(0, 0.07 - i * 0.008)})`,
-            opacity: showParticles ? 1 : 0,
-            transition: `opacity 1400ms ease ${i * 150}ms`,
-          }}
-        />
-      ))}
+      {/* ── Depth luminescence glow (replaces hard lines) ──────────── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse 80% 30% at 50% 62%, rgba(0,140,220,0.07) 0%, transparent 100%)",
+          opacity: showParticles ? 1 : 0,
+          transition: "opacity 2000ms ease",
+        }}
+      />
 
       {/* ── Diver ──────────────────────────────────────────────────── */}
       <div

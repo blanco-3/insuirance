@@ -7,6 +7,7 @@ import { PolicyList } from "@/components/PolicyList";
 import { Dashboard } from "@/components/Dashboard";
 import { HedgeCalculator } from "@/components/HedgeCalculator";
 import { ShieldVault } from "@/components/ShieldVault";
+import { DepthAnimation } from "@/components/DepthAnimation";
 
 // Deterministic rain streak data — no Math.random() to avoid hydration mismatch
 const rainStreaks = Array.from({ length: 40 }, (_, i) => ({
@@ -22,9 +23,13 @@ export default function Home() {
   const account = useCurrentAccount();
   const [suggestedCover, setSuggestedCover] = useState<string | undefined>();
   const [tab, setTab] = useState<"cover" | "vault">("cover");
+  const [showDevAnim, setShowDevAnim] = useState(false);
 
   return (
     <div className="flex flex-col min-h-screen">
+      {showDevAnim && (
+        <DepthAnimation type="cover" onDone={() => setShowDevAnim(false)} />
+      )}
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-2">
@@ -40,7 +45,7 @@ export default function Home() {
       <main className="flex flex-1 flex-col items-center px-4 py-12">
         <div className="max-w-lg w-full space-y-4">
           {/* Hero */}
-          <div className="text-center space-y-3 mb-8 relative">
+          <div className="text-center mb-8 relative">
             {/* Storm scene */}
             <div
               className="absolute left-1/2 -translate-x-1/2 w-screen overflow-hidden pointer-events-none"
@@ -161,18 +166,21 @@ export default function Home() {
               </svg>
             </div>
 
-            <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "rgba(0,212,255,0.6)" }}>
-              Insuirance
-            </p>
-            <h1 className="text-4xl font-bold tracking-tight leading-tight">
-              Surface storms don&apos;t<br />reach the deep.
-            </h1>
-            <p className="text-sm" style={{ color: "rgba(180,220,255,0.55)" }}>
-              BTC crashes on the surface — your cover lives in the deep with DeepBook.
-            </p>
-            <p className="text-xs" style={{ color: "rgba(120,160,200,0.4)" }}>
-              Settles onchain, automatically · Sui Testnet
-            </p>
+            {/* Text — must be relative+z-index to paint above absolute storm scene */}
+            <div className="relative space-y-3 pt-2" style={{ zIndex: 1 }}>
+              <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "rgba(0,212,255,0.6)" }}>
+                Insuirance
+              </p>
+              <h1 className="text-4xl font-bold tracking-tight leading-tight">
+                Surface storms don&apos;t<br />reach the deep.
+              </h1>
+              <p className="text-sm" style={{ color: "rgba(180,220,255,0.55)" }}>
+                BTC crashes on the surface — your cover lives in the deep with DeepBook.
+              </p>
+              <p className="text-xs" style={{ color: "rgba(120,160,200,0.4)" }}>
+                Settles onchain, automatically · Sui Testnet
+              </p>
+            </div>
           </div>
 
           {account ? (
@@ -248,6 +256,15 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Dev: preview depth animation without spending tokens */}
+      <button
+        onClick={() => setShowDevAnim(true)}
+        title="Preview depth animation"
+        className="fixed bottom-6 left-4 text-xs font-mono text-gray-700 hover:text-gray-300 border border-white/5 hover:border-white/20 bg-black/20 hover:bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full transition-all"
+      >
+        ⚡ depth anim
+      </button>
     </div>
   );
 }

@@ -1,91 +1,252 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-type Phase = "surface" | "diving" | "deep" | "fading";
+type Phase = "surface" | "diving" | "deep" | "success" | "fading";
 
 interface Props {
   type: "deposit" | "cover";
   onDone: () => void;
 }
 
-const BUBBLES = [
-  { x: 46, delay: 0.0, size: 7 },
-  { x: 50, delay: 0.4, size: 4 },
-  { x: 43, delay: 0.7, size: 9 },
-  { x: 53, delay: 1.0, size: 5 },
-  { x: 48, delay: 1.3, size: 3 },
-  { x: 55, delay: 0.2, size: 6 },
-  { x: 41, delay: 0.9, size: 4 },
+// ── Wave layers (rendered on canvas) ────────────────────────────────────────
+
+interface WaveLayer {
+  amp: number;       // base amplitude px
+  freq: number;      // spatial frequency
+  speed: number;     // time speed multiplier
+  phase: number;     // initial phase offset
+  yBase: number;     // fraction of canvas height
+  r: number; g: number; b: number; a: number; // RGBA
+}
+
+const WAVE_LAYERS: WaveLayer[] = [
+  { amp: 32, freq: 0.014, speed: 1.0, phase: 0.0, yBase: 0.36, r:  8, g: 60, b:140, a: 0.70 },
+  { amp: 24, freq: 0.023, speed: 2.4, phase: 2.1, yBase: 0.41, r: 12, g: 80, b:160, a: 0.60 },
+  { amp: 20, freq: 0.019, speed: 1.6, phase: 1.1, yBase: 0.45, r:  6, g: 55, b:135, a: 0.55 },
+  { amp: 16, freq: 0.036, speed: 3.9, phase: 0.6, yBase: 0.49, r: 25, g:100, b:180, a: 0.45 },
+  { amp: 10, freq: 0.050, speed: 5.5, phase: 1.9, yBase: 0.43, r: 45, g:125, b:205, a: 0.35 },
+  { amp: 28, freq: 0.010, speed: 0.7, phase: 3.3, yBase: 0.38, r:  4, g: 40, b:115, a: 0.50 },
+  { amp:  8, freq: 0.068, speed: 7.0, phase: 0.3, yBase: 0.46, r: 70, g:150, b:220, a: 0.25 },
 ];
 
-const PARTICLES = [
-  { x: 15, y: 55, c: "rgba(0,212,255,0.6)",   d: 0.0, dur: 3.2, s: 3 },
-  { x: 28, y: 72, c: "rgba(100,220,180,0.5)", d: 0.6, dur: 4.0, s: 2 },
-  { x: 42, y: 80, c: "rgba(0,212,255,0.4)",   d: 1.2, dur: 3.6, s: 4 },
-  { x: 58, y: 63, c: "rgba(180,100,255,0.4)", d: 0.3, dur: 2.8, s: 2 },
-  { x: 70, y: 78, c: "rgba(0,212,255,0.5)",   d: 0.9, dur: 3.4, s: 3 },
-  { x: 82, y: 68, c: "rgba(100,220,180,0.4)", d: 1.5, dur: 4.2, s: 2 },
-  { x: 22, y: 88, c: "rgba(0,212,255,0.3)",   d: 0.4, dur: 3.0, s: 5 },
-  { x: 65, y: 90, c: "rgba(180,100,255,0.5)", d: 1.1, dur: 3.8, s: 2 },
-  { x: 35, y: 60, c: "rgba(0,212,255,0.5)",   d: 0.7, dur: 2.6, s: 3 },
-  { x: 78, y: 82, c: "rgba(100,220,180,0.6)", d: 0.2, dur: 4.4, s: 2 },
-];
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  t: number,
+  intensity: number,   // 1 = full storm, 0 = calm
+) {
+  ctx.clearRect(0, 0, w, h);
 
-// Seamless wave SVG: path is doubled (0→2880) so -50% translateX loops perfectly
-function WaveLayer({ opacity, speed, yOffset, fill }: {
-  opacity: number; speed: number; yOffset: number; fill: string;
-}) {
+  // ── Flickering storm light ──
+  const lx = w * (0.4 + Math.sin(t * 0.6) * 0.25);
+  const lg = ctx.createRadialGradient(lx, h * 0.25, 0, lx, h * 0.25, w * 0.45);
+  lg.addColorStop(0, `rgba(70,150,255,${0.14 * intensity})`);
+  lg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = lg;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Wave layers back → front ──
+  for (let wi = WAVE_LAYERS.length - 1; wi >= 0; wi--) {
+    const l = WAVE_LAYERS[wi];
+    const amp = l.amp * intensity;
+    const yb  = h * l.yBase;
+
+    ctx.beginPath();
+    ctx.moveTo(0, yb);
+    for (let x = 0; x <= w; x += 4) {
+      const y  = Math.sin(x * l.freq + t * l.speed + l.phase) * amp;
+      const y2 = Math.sin(x * l.freq * 2.2 + t * l.speed * 1.5 + l.phase * 0.8) * amp * 0.38;
+      const y3 = Math.sin(x * l.freq * 4.1 + t * l.speed * 2.8 + l.phase * 1.6) * amp * 0.15;
+      ctx.lineTo(x, yb + y + y2 + y3);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(${l.r},${l.g},${l.b},${l.a * intensity + 0.02})`;
+    ctx.fill();
+  }
+
+  // ── Foam spray at crests ──
+  if (intensity > 0.1) {
+    for (let x = 0; x < w; x += 55) {
+      const cy = h * 0.36 + Math.sin(x * 0.014 + t * 1.0) * 32 * intensity;
+      const cx = x + Math.sin(t * 1.9 + x * 0.009) * 22;
+      const fa = (0.10 + Math.abs(Math.sin(t * 2.4 + x * 0.018)) * 0.09) * intensity;
+      const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22);
+      rg.addColorStop(0, `rgba(210,240,255,${fa})`);
+      rg.addColorStop(1, "rgba(210,240,255,0)");
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// ── Diver SVG silhouette ─────────────────────────────────────────────────────
+
+function Diver({ glowing, angle }: { glowing: boolean; angle: number }) {
   return (
-    <div className="absolute left-0 right-0 overflow-hidden" style={{ top: yOffset, height: 72 }}>
-      <svg
-        viewBox="0 0 2880 72"
-        preserveAspectRatio="none"
-        className="wave-anim"
-        style={{ width: "200%", height: "100%", opacity, animationDuration: `${speed}s` }}
-      >
-        <path
-          d="M0,36 C180,68 360,4 540,36 C720,68 900,4 1080,36 C1260,68 1440,4 1440,36
-             C1620,68 1800,4 1980,36 C2160,68 2340,4 2520,36 C2700,68 2880,4 2880,36
-             L2880,72 L0,72 Z"
-          fill={fill}
-        />
-      </svg>
-    </div>
+    <svg
+      width="56" height="80"
+      viewBox="0 0 56 80"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{
+        transform: `rotate(${angle}deg)`,
+        transition: "transform 2600ms ease",
+        filter: glowing
+          ? "drop-shadow(0 0 14px rgba(0,212,255,1)) drop-shadow(0 0 30px rgba(0,212,255,0.55))"
+          : "drop-shadow(0 6px 10px rgba(0,0,0,0.7))",
+        transition2: "filter 1800ms ease",
+      } as React.CSSProperties}
+    >
+      {/* Air tank */}
+      <rect x="32" y="27" width="10" height="24" rx="4" fill="rgba(130,200,220,0.88)" />
+      <rect x="33" y="24" width="8"  height="4"  rx="2" fill="rgba(100,175,200,0.80)" />
+      {/* Regulator hose */}
+      <path d="M36 28 Q44 25 43 20 Q42 16 38 17"
+        stroke="rgba(90,170,200,0.75)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      {/* Body / wetsuit */}
+      <ellipse cx="23" cy="43" rx="11" ry="16" fill="rgba(20,65,130,0.95)" />
+      <ellipse cx="20" cy="39" rx="4.5" ry="9" fill="rgba(35,90,165,0.50)" />
+      {/* Helmet */}
+      <circle cx="23" cy="21" r="11" fill="rgba(20,65,130,0.95)" />
+      {/* Visor */}
+      <path d="M13 19 Q23 10 33 19 Q33 28 23 30 Q13 28 13 19Z" fill="rgba(0,175,230,0.82)" />
+      {/* Visor glare */}
+      <path d="M16 17 Q21 13 27 16" stroke="rgba(210,245,255,0.55)" strokeWidth="2" fill="none" strokeLinecap="round" />
+      {/* Left arm */}
+      <path d="M12 37 L2 51" stroke="rgba(20,65,130,0.95)" strokeWidth="7" strokeLinecap="round" />
+      {/* Right arm */}
+      <path d="M34 37 L42 52" stroke="rgba(20,65,130,0.95)" strokeWidth="7" strokeLinecap="round" />
+      {/* Gloves */}
+      <circle cx="2"  cy="52" r="5" fill="rgba(0,145,200,0.92)" />
+      <circle cx="42" cy="53" r="5" fill="rgba(0,145,200,0.92)" />
+      {/* Left fin */}
+      <path d="M13 57 L2  78 L23 67 Z" fill="rgba(0,195,220,0.92)" />
+      {/* Right fin */}
+      <path d="M33 57 L44 78 L23 67 Z" fill="rgba(0,195,220,0.92)" />
+    </svg>
   );
 }
 
-export function DepthAnimation({ type, onDone }: Props) {
-  const [phase, setPhase] = useState<Phase>("surface");
-  const [diverTop, setDiverTop]     = useState(9);   // % from top
-  const [bgDeep,   setBgDeep]       = useState(false);
-  const [bubbles,  setBubbles]      = useState(false);
-  const [showMsg,  setShowMsg]      = useState(false);
+// ── Bioluminescent particles ─────────────────────────────────────────────────
 
+const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
+  id: i,
+  x: 4 + (i * 4.4) % 92,
+  y: 48 + (i * 2.9) % 47,
+  color: [
+    "rgba(0,212,255,0.75)",
+    "rgba(70,220,175,0.65)",
+    "rgba(155,80,255,0.55)",
+  ][i % 3],
+  size: 2 + (i % 3),
+  delay: (i * 0.31) % 3.8,
+  dur:   2.6 + (i % 4) * 0.55,
+}));
+
+// ── Bubbles rising from diver ────────────────────────────────────────────────
+
+const BUBBLES = Array.from({ length: 12 }, (_, i) => ({
+  id: i,
+  x: 44 + (i % 5) * 2.2 - 4.5,
+  size: 3 + (i % 4),
+  delay: (i * 0.19) % 1.6,
+  dur: 1.5 + (i % 3) * 0.45,
+}));
+
+// ── Main component ───────────────────────────────────────────────────────────
+
+export function DepthAnimation({ type, onDone }: Props) {
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const rafRef      = useRef<number>(0);
+  const tRef        = useRef(0);
+  const intRef      = useRef(1);            // wave intensity (no re-render needed)
+
+  const [phase,        setPhase]        = useState<Phase>("surface");
+  const [diverTop,     setDiverTop]     = useState(10);   // % from top
+  const [diverAngle,   setDiverAngle]   = useState(0);
+  const [waveSlide,    setWaveSlide]    = useState(0);    // translateY px — waves scroll up
+  const [waveOpacity,  setWaveOpacity]  = useState(1);
+  const [bgDark,       setBgDark]       = useState(false);
+  const [showBubbles,  setShowBubbles]  = useState(false);
+  const [showParticles,setShowParticles]= useState(false);
+  const [showMsg,      setShowMsg]      = useState(false);
+
+  // ── Canvas wave loop ────────────────────────────────────────────────────
   useEffect(() => {
-    // start descent
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function resize() {
+      if (!canvas) return;
+      canvas.width  = window.innerWidth;
+      canvas.height = Math.round(window.innerHeight * 0.6);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const ctx = canvas.getContext("2d")!;
+
+    function loop() {
+      tRef.current += 0.016;
+      if (canvas) drawFrame(ctx, canvas.width, canvas.height, tRef.current, intRef.current);
+      rafRef.current = requestAnimationFrame(loop);
+    }
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  // ── Animation timeline ───────────────────────────────────────────────────
+  useEffect(() => {
+    // 0.7s — start diving
     const t1 = setTimeout(() => {
       setPhase("diving");
-      setDiverTop(60);
-      setBubbles(true);
-    }, 600);
-    // reach the deep
+      setDiverTop(58);
+      setDiverAngle(10);
+      setWaveSlide(-55);
+      setShowBubbles(true);
+    }, 700);
+
+    // 2.0s — mid-water: waves receding
     const t2 = setTimeout(() => {
+      intRef.current = 0.25;
+      setWaveSlide(-120);
+      setWaveOpacity(0.35);
+    }, 2000);
+
+    // 3.2s — reach the deep
+    const t3 = setTimeout(() => {
       setPhase("deep");
-      setBgDeep(true);
-      setBubbles(false);
-    }, 2800);
-    // success message
-    const t3 = setTimeout(() => setShowMsg(true), 3500);
-    // begin fade-out
-    const t4 = setTimeout(() => setPhase("fading"), 5000);
-    // remove
-    const t5 = setTimeout(onDone, 5700);
+      setBgDark(true);
+      setDiverAngle(0);
+      setShowBubbles(false);
+      setShowParticles(true);
+      setWaveSlide(-200);
+      setWaveOpacity(0);
+      intRef.current = 0;
+    }, 3200);
 
-    return () => [t1, t2, t3, t4, t5].forEach(clearTimeout);
+    // 4.2s — success message
+    const t4 = setTimeout(() => {
+      setPhase("success");
+      setShowMsg(true);
+    }, 4200);
+
+    // 5.6s — fade out
+    const t5 = setTimeout(() => setPhase("fading"), 5700);
+    const t6 = setTimeout(onDone, 6400);
+
+    return () => [t1, t2, t3, t4, t5, t6].forEach(clearTimeout);
   }, [onDone]);
-
-  const isStormy = phase === "surface" || phase === "diving";
 
   return (
     <div
@@ -95,149 +256,152 @@ export function DepthAnimation({ type, onDone }: Props) {
         transition: "opacity 700ms ease",
       }}
     >
-      {/* Ocean background — transitions from stormy to deep */}
+      {/* ── Deep ocean base background ─────────────────────────────── */}
       <div
         className="absolute inset-0"
         style={{
-          background: bgDeep
-            ? "linear-gradient(to bottom, #020d1a 0%, #010810 50%, #010608 100%)"
-            : "linear-gradient(to bottom, #0e3d60 0%, #07233d 35%, #030f20 100%)",
-          transition: "background 2500ms ease",
+          background: bgDark
+            ? "linear-gradient(to bottom, #010d1c 0%, #010810 55%, #020608 100%)"
+            : "linear-gradient(to bottom, #0e3558 0%, #071a30 45%, #030d1e 100%)",
+          transition: "background 3000ms ease",
         }}
       />
 
-      {/* Storm light shimmer near surface */}
+      {/* ── Storm surface glow (top) ────────────────────────────────── */}
       <div
-        className="absolute top-0 left-0 right-0 h-56 pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse at 50% 0%, rgba(80,160,255,0.18) 0%, transparent 70%)",
-          opacity: isStormy ? 1 : 0,
-          transition: "opacity 2000ms ease",
+          background: "radial-gradient(ellipse 110% 45% at 50% 0%, rgba(50,130,255,0.18) 0%, transparent 100%)",
+          opacity: phase === "surface" || phase === "diving" ? 1 : 0,
+          transition: "opacity 2200ms ease",
         }}
       />
 
-      {/* Waves — slide out as we go deep */}
-      <div
+      {/* ── Canvas (waves) — scrolls upward as diver descends ─────── */}
+      <canvas
+        ref={canvasRef}
+        className="absolute left-0"
         style={{
-          opacity: isStormy ? 1 : 0,
-          transform: bgDeep ? "translateY(-40px)" : "translateY(0)",
-          transition: "opacity 2000ms ease, transform 2000ms ease",
+          top: 0,
+          width: "100%",
+          transform: `translateY(${waveSlide}px)`,
+          opacity: waveOpacity,
+          transition: [
+            "transform 2800ms cubic-bezier(0.4, 0, 0.2, 1)",
+            "opacity 1800ms ease",
+          ].join(", "),
         }}
-      >
-        <WaveLayer opacity={0.7} speed={3.5} yOffset={0}  fill="rgba(14,90,150,0.55)" />
-        <WaveLayer opacity={0.5} speed={5.5} yOffset={18} fill="rgba(8,55,100,0.45)"  />
-        <WaveLayer opacity={0.3} speed={7.0} yOffset={32} fill="rgba(4,30,60,0.35)"   />
-      </div>
+      />
 
-      {/* Depth lines — appear as we go deeper */}
-      {[0,1,2,3,4].map((i) => (
+      {/* ── Depth vignette at bottom ───────────────────────────────── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "linear-gradient(to top, rgba(1,5,10,0.95) 0%, rgba(1,5,10,0.5) 25%, transparent 55%)",
+          opacity: bgDark ? 1 : 0.3,
+          transition: "opacity 2500ms ease",
+        }}
+      />
+
+      {/* ── Horizontal depth lines ──────────────────────────────────── */}
+      {[0,1,2,3,4,5].map((i) => (
         <div
           key={i}
           className="absolute left-0 right-0"
           style={{
-            top: `${22 + i * 14}%`,
+            top: `${16 + i * 13}%`,
             height: 1,
-            background: `rgba(0,212,255,${0.08 - i * 0.01})`,
-            opacity: bgDeep ? 1 : 0,
-            transition: `opacity 1500ms ease ${300 + i * 180}ms`,
+            background: `rgba(0,170,255,${Math.max(0, 0.07 - i * 0.008)})`,
+            opacity: showParticles ? 1 : 0,
+            transition: `opacity 1400ms ease ${i * 150}ms`,
           }}
         />
       ))}
 
-      {/* Fugu 🐡 */}
+      {/* ── Diver ──────────────────────────────────────────────────── */}
       <div
-        className="absolute left-1/2 select-none pointer-events-none"
+        className="absolute left-1/2 pointer-events-none"
         style={{
           top: `${diverTop}%`,
-          fontSize: 52,
-          transform: `translateX(-50%) ${phase === "diving" ? "rotate(14deg) scale(0.82)" : "rotate(0deg) scale(1)"}`,
-          filter: bgDeep
-            ? "drop-shadow(0 0 28px rgba(0,212,255,0.9)) drop-shadow(0 0 8px rgba(0,212,255,0.6))"
-            : "drop-shadow(0 4px 12px rgba(0,0,0,0.5))",
-          transition: [
-            "top 2300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-            "transform 2300ms ease",
-            "filter 1200ms ease",
-          ].join(", "),
+          transform: "translateX(-50%)",
+          transition: "top 2700ms cubic-bezier(0.3, 0, 0.25, 1)",
+          zIndex: 10,
         }}
       >
-        🐡
+        <Diver glowing={bgDark} angle={diverAngle} />
       </div>
 
-      {/* Bubbles rising from Fugu while diving */}
-      {bubbles && BUBBLES.map((b, i) => (
+      {/* ── Bubbles rising from diver ───────────────────────────────── */}
+      {showBubbles && BUBBLES.map((b) => (
         <div
-          key={i}
+          key={b.id}
           className="absolute rounded-full bubble-anim"
           style={{
             left: `${b.x}%`,
-            top: "58%",
+            top: `${diverTop + 6}%`,
             width: b.size,
             height: b.size,
-            background: "rgba(0,212,255,0.18)",
-            border: "1px solid rgba(0,212,255,0.35)",
+            background: "rgba(160,225,255,0.22)",
+            border: "1px solid rgba(120,205,255,0.45)",
             animationDelay: `${b.delay}s`,
-            animationDuration: "1.9s",
+            animationDuration: `${b.dur}s`,
           }}
         />
       ))}
 
-      {/* Bioluminescent particles in the deep */}
-      <div
-        style={{
-          opacity: bgDeep ? 1 : 0,
-          transition: "opacity 1800ms ease 400ms",
-        }}
-      >
-        {PARTICLES.map((p, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full biolum-anim"
-            style={{
-              left: `${p.x}%`,
-              top: `${p.y}%`,
-              width: p.s,
-              height: p.s,
-              background: p.c,
-              animationDelay: `${p.d}s`,
-              animationDuration: `${p.dur}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* ── Bioluminescent particles (deep only) ───────────────────── */}
+      {PARTICLES.map((p) => (
+        <div
+          key={p.id}
+          className="absolute rounded-full biolum-anim"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size,
+            background: p.color,
+            opacity: showParticles ? 1 : 0,
+            transition: `opacity 900ms ease ${Math.round(p.delay * 120)}ms`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.dur}s`,
+          }}
+        />
+      ))}
 
-      {/* Success message */}
+      {/* ── Success message ─────────────────────────────────────────── */}
       <div
-        className="absolute left-0 right-0 flex flex-col items-center gap-3"
+        className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
         style={{
-          bottom: "28%",
+          bottom: "22%",
           opacity: showMsg ? 1 : 0,
-          transform: showMsg ? "translateY(0)" : "translateY(20px)",
-          transition: "opacity 700ms ease, transform 700ms ease",
+          transform: showMsg ? "translateY(0)" : "translateY(18px)",
+          transition: "opacity 900ms ease, transform 900ms ease",
         }}
       >
-        <div className="flex items-center gap-3">
-          <div style={{ width: 1, height: 32, background: "rgba(0,212,255,0.35)" }} />
-          <span
-            className="text-xs font-mono tracking-widest uppercase"
-            style={{ color: "#00d4ff" }}
-          >
-            {type === "deposit" ? "Secured in the deep" : "Cover active in the deep"}
-          </span>
-          <div style={{ width: 1, height: 32, background: "rgba(0,212,255,0.35)" }} />
+        <div className="flex items-center gap-5">
+          <div style={{ width: 1, height: 40, background: "rgba(0,212,255,0.28)" }} />
+          <div className="text-center space-y-2">
+            <p
+              className="text-xs font-mono tracking-[0.28em] uppercase"
+              style={{ color: "#00d4ff" }}
+            >
+              {type === "deposit" ? "Secured in the deep" : "Cover active in the deep"}
+            </p>
+            <p className="text-xs font-mono" style={{ color: "rgba(160,210,255,0.32)" }}>
+              Calm beneath the chaos · Powered by DeepBook
+            </p>
+          </div>
+          <div style={{ width: 1, height: 40, background: "rgba(0,212,255,0.28)" }} />
         </div>
-        <p className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Calm beneath the chaos · Powered by DeepBook
-        </p>
       </div>
 
-      {/* Skip */}
+      {/* ── Skip ───────────────────────────────────────────────────── */}
       <button
         onClick={onDone}
-        className="absolute bottom-7 left-1/2 -translate-x-1/2 text-xs transition-colors"
-        style={{ color: "rgba(255,255,255,0.2)" }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.2)")}
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs transition-colors duration-200"
+        style={{ color: "rgba(255,255,255,0.15)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.15)")}
       >
         skip
       </button>

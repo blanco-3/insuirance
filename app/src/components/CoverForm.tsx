@@ -464,19 +464,20 @@ export function CoverForm({ address, suggestedCover }: Props) {
               </div>
             </div>
 
-            {/* Expiry — pill trigger + modal picker */}
-            <div className="space-y-2">
+            {/* Expiry — horizontal timeline + sparkline */}
+            <div className="space-y-1.5">
               <label className="text-sm text-gray-400">Expiry</label>
               {oracles.length === 0 ? (
                 <p className="text-sm text-gray-500">Loading markets…</p>
               ) : (
-                <ExpiryPicker
+                <ExpiryTimeline
                   oracles={oracles}
                   selected={oracleOption}
-                  onSelect={(o) => { setOracleOption(o); setShowExpiryPicker(false); }}
-                  open={showExpiryPicker}
-                  onToggle={() => setShowExpiryPicker((v) => !v)}
-                  onClose={() => setShowExpiryPicker(false)}
+                  onSelect={setOracleOption}
+                  coverRaw={coverRaw}
+                  sviParams={sviParams}
+                  forwardRaw={forwardRaw}
+                  spotRaw={spotRaw}
                 />
               )}
             </div>
@@ -589,177 +590,250 @@ export function CoverForm({ address, suggestedCover }: Props) {
   );
 }
 
-// ── ExpiryPicker ─────────────────────────────────────────────────────────────
+// ── ExpiryTimeline ────────────────────────────────────────────────────────────
+// Horizontal scrollable card rail + premium sparkline chart above it.
 
-import { useRef, useEffect as useEffectRef } from "react";
-import { type OracleInfo as OI } from "@/lib/predict-api";
+import { useRef, useEffect as useEffectAlias } from "react";
 
-function timeUntil(ms: number): { label: string; urgent: boolean } {
+interface TimelineProps {
+  oracles:    OracleInfo[];
+  selected:   OracleInfo | null;
+  onSelect:   (o: OracleInfo) => void;
+  coverRaw:   bigint;
+  sviParams:  SVIParams | null;
+  forwardRaw: bigint;
+  spotRaw:    bigint;
+}
+
+function daysLeft(ms: number) { return Math.max(0, (ms - Date.now()) / 86_400_000); }
+
+function countdown(ms: number): { label: string; urgent: boolean } {
   const diff = ms - Date.now();
   if (diff <= 0) return { label: "Expired", urgent: true };
   const d = Math.floor(diff / 86_400_000);
   const h = Math.floor((diff % 86_400_000) / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
   if (d > 0) return { label: `${d}d ${h}h`, urgent: d < 1 };
-  if (h > 0) return { label: `${h}h ${m}m`,  urgent: h < 6 };
+  if (h > 0) return { label: `${h}h ${m}m`, urgent: h < 6 };
   return { label: `${m}m`, urgent: true };
 }
 
-interface ExpiryPickerProps {
-  oracles:  OI[];
-  selected: OI | null;
-  onSelect: (o: OI) => void;
-  open:     boolean;
-  onToggle: () => void;
-  onClose:  () => void;
+// Approximate relative premium using √T (no SVI needed per oracle — just for sparkline shape)
+function approxPremiumFraction(expiryMs: number): number {
+  const T = Math.max(0, (expiryMs - Date.now()) / (365.25 * 24 * 3600 * 1000));
+  return Math.sqrt(T) * 0.30; // 30% IV proxy → premium as fraction of notional
 }
 
-function ExpiryPicker({ oracles, selected, onSelect, open, onToggle, onClose }: ExpiryPickerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+// ── Sparkline ──────────────────────────────────────────────────────────────
 
-  // close on outside click
-  useEffectRef(() => {
-    if (!open) return;
-    function handler(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+function PremiumSparkline({
+  oracles,
+  selected,
+}: {
+  oracles: OracleInfo[];
+  selected: OracleInfo | null;
+}) {
+  if (oracles.length < 2) return null;
+
+  const W = 400;
+  const H = 56;
+  const PAD_X = 24;
+  const PAD_Y = 8;
+
+  const fractions = oracles.map((o) => approxPremiumFraction(o.expiry));
+  const maxF = Math.max(...fractions, 0.001);
+
+  const pts = fractions.map((f, i) => ({
+    x: PAD_X + (i / (oracles.length - 1)) * (W - PAD_X * 2),
+    y: H - PAD_Y - (f / maxF) * (H - PAD_Y * 2),
+  }));
+
+  // Smooth cubic bezier path
+  function curvePath(points: { x: number; y: number }[]) {
+    if (points.length < 2) return "";
+    let d = `M${points[0].x},${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const cur  = points[i];
+      const cpX = (prev.x + cur.x) / 2;
+      d += ` C${cpX},${prev.y} ${cpX},${cur.y} ${cur.x},${cur.y}`;
     }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open, onClose]);
+    return d;
+  }
 
-  const selExpiry = selected ? new Date(selected.expiry) : null;
-  const selDateStr = selExpiry?.toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
-  });
-  const selTimeStr = selExpiry?.toLocaleTimeString("en-US", {
-    hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
-  });
-  const selTimer = selected ? timeUntil(selected.expiry) : null;
+  const linePath = curvePath(pts);
+  const areaPath = `${linePath} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+
+  const selIdx = selected ? oracles.findIndex((o) => o.id === selected.id) : -1;
+  const selPt  = selIdx >= 0 ? pts[selIdx] : null;
 
   return (
-    <div ref={containerRef} className="relative">
-      {/* ── Trigger pill ── */}
-      <button
-        onClick={onToggle}
-        className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
-          open
-            ? "border-blue-500/60 bg-blue-950/30"
-            : "border-white/10 bg-white/5 hover:bg-white/8 hover:border-white/20"
-        }`}
+    <div
+      className="rounded-t-xl overflow-hidden"
+      style={{ background: "rgba(2,10,22,0.7)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+    >
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        style={{ width: "100%", height: 56, display: "block" }}
       >
-        {selected ? (
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-xs font-bold text-white/60 uppercase tracking-wider shrink-0">
-              {selected.underlying_asset}
-            </span>
-            <span className="font-mono text-sm text-white font-semibold truncate">
-              {selDateStr}
-            </span>
-            <span className="text-xs text-gray-500 shrink-0">{selTimeStr}</span>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-500">Select expiry…</span>
+        <defs>
+          <linearGradient id="etGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="rgba(0,180,255,0.22)" />
+            <stop offset="100%" stopColor="rgba(0,180,255,0.02)" />
+          </linearGradient>
+          <linearGradient id="etLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="rgba(0,150,230,0.4)" />
+            <stop offset="100%" stopColor="rgba(0,210,255,0.7)" />
+          </linearGradient>
+        </defs>
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#etGrad)" />
+        {/* Line */}
+        <path d={linePath} stroke="url(#etLine)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+
+        {/* Oracle dots */}
+        {pts.map((p, i) => {
+          const isSel = oracles[i].id === selected?.id;
+          return (
+            <circle
+              key={i}
+              cx={p.x} cy={p.y}
+              r={isSel ? 4.5 : 3}
+              fill={isSel ? "#00d4ff" : "rgba(0,180,255,0.45)"}
+              stroke={isSel ? "rgba(0,212,255,0.3)" : "none"}
+              strokeWidth={isSel ? 6 : 0}
+            />
+          );
+        })}
+
+        {/* Selected vertical line */}
+        {selPt && (
+          <line
+            x1={selPt.x} y1={0} x2={selPt.x} y2={H}
+            stroke="rgba(0,212,255,0.25)" strokeWidth="1" strokeDasharray="3 3"
+          />
         )}
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          {selTimer && (
-            <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-              selTimer.urgent
-                ? "bg-red-900/50 text-red-300"
-                : "bg-white/8 text-gray-400"
-            }`}>
-              {selTimer.label}
-            </span>
-          )}
-          <svg
-            className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-            viewBox="0 0 16 16" fill="currentColor"
-          >
-            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      </button>
 
-      {/* ── Dropdown panel ── */}
-      {open && (
-        <div
-          className="absolute left-0 right-0 top-full mt-2 z-40 rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
-          style={{
-            background: "rgba(4, 15, 30, 0.97)",
-            backdropFilter: "blur(20px)",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
-          }}
-        >
-          <div className="px-4 pt-3 pb-2">
-            <p className="text-xs text-gray-600 uppercase tracking-widest font-medium">
-              Select expiry date
-            </p>
-          </div>
-
-          <div className="divide-y divide-white/[0.05]">
-            {oracles.map((o) => {
-              const d       = new Date(o.expiry);
-              const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-              const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
-              const timer   = timeUntil(o.expiry);
-              const isSel   = selected?.id === o.id;
-
-              // days until expiry — used to color the expiry distance bar
-              const daysLeft = Math.max(0, (o.expiry - Date.now()) / 86_400_000);
-              const barW = Math.min(100, (daysLeft / 30) * 100); // normalise to 30 days
-
-              return (
-                <button
-                  key={o.id}
-                  onClick={() => onSelect(o)}
-                  className={`w-full flex items-center gap-4 px-4 py-3.5 text-left transition-colors ${
-                    isSel
-                      ? "bg-blue-600/20"
-                      : "hover:bg-white/[0.04]"
-                  }`}
-                >
-                  {/* Selected indicator */}
-                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSel ? "bg-blue-400" : "bg-white/10"}`} />
-
-                  {/* Main info */}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white/50 uppercase tracking-wider">{o.underlying_asset}</span>
-                      <span className="font-mono text-sm text-white font-semibold">{dateStr}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500">{timeStr}</span>
-                      {/* Time bar */}
-                      <div className="flex-1 h-0.5 rounded-full bg-white/8 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${timer.urgent ? "bg-red-500/60" : "bg-blue-500/50"}`}
-                          style={{ width: `${barW}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Countdown pill */}
-                  <span className={`text-xs font-mono px-2.5 py-1 rounded-full shrink-0 ${
-                    isSel
-                      ? "bg-blue-500/25 text-blue-300"
-                      : timer.urgent
-                      ? "bg-red-900/40 text-red-400"
-                      : "bg-white/8 text-gray-400"
-                  }`}>
-                    {timer.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="px-4 py-2.5 border-t border-white/[0.05]">
-            <p className="text-xs text-gray-700">Longer expiry = more time for BTC to hit your strike</p>
-          </div>
-        </div>
-      )}
+        {/* Y-axis label */}
+        <text x={4} y={13} fontSize={7} fill="rgba(120,170,220,0.4)" fontFamily="monospace">
+          est. cost ↑
+        </text>
+      </svg>
     </div>
   );
 }
+
+// ── Timeline cards ─────────────────────────────────────────────────────────
+
+function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll selected card into view when selection changes
+  useEffectAlias(() => {
+    if (!scrollRef.current || !selected) return;
+    const el = scrollRef.current.querySelector<HTMLElement>(`[data-oid="${selected.id}"]`);
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [selected?.id]);
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-white/8" style={{ background: "rgba(3,12,26,0.6)" }}>
+      {/* Sparkline above */}
+      <PremiumSparkline oracles={oracles} selected={selected} />
+
+      {/* Scrollable card rail */}
+      <div
+        ref={scrollRef}
+        className="overflow-x-auto"
+        style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex gap-0 p-0" style={{ width: "max-content", minWidth: "100%" }}>
+          {oracles.map((o, i) => {
+            const isSel = selected?.id === o.id;
+            const d     = new Date(o.expiry);
+            const mon   = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+            const day   = d.toLocaleDateString("en-US", { day: "numeric",  timeZone: "UTC" });
+            const time  = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+            const { label: cd, urgent } = countdown(o.expiry);
+            const days  = daysLeft(o.expiry);
+
+            return (
+              <button
+                key={o.id}
+                data-oid={o.id}
+                onClick={() => onSelect(o)}
+                className="relative flex flex-col items-center gap-1.5 px-4 py-3 transition-colors shrink-0"
+                style={{
+                  minWidth: 96,
+                  background: isSel ? "rgba(0,100,200,0.18)" : "transparent",
+                  borderRight: i < oracles.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                }}
+              >
+                {/* Selected top-bar */}
+                {isSel && (
+                  <div
+                    className="absolute top-0 left-0 right-0 h-0.5"
+                    style={{ background: "linear-gradient(to right, transparent, #00d4ff, transparent)" }}
+                  />
+                )}
+
+                {/* Date */}
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 leading-none">{mon}</p>
+                  <p className={`text-xl font-bold font-mono leading-tight ${isSel ? "text-white" : "text-gray-300"}`}>
+                    {day}
+                  </p>
+                  <p className="text-xs text-gray-600 leading-none">{time}</p>
+                </div>
+
+                {/* Countdown pill */}
+                <span
+                  className="text-xs font-mono px-2 py-0.5 rounded-full"
+                  style={{
+                    background: isSel
+                      ? "rgba(0,180,255,0.2)"
+                      : urgent
+                      ? "rgba(220,50,50,0.2)"
+                      : "rgba(255,255,255,0.06)",
+                    color: isSel
+                      ? "#00d4ff"
+                      : urgent
+                      ? "#f87171"
+                      : "rgba(160,180,210,0.7)",
+                  }}
+                >
+                  {cd}
+                </span>
+
+                {/* Days-bar at bottom */}
+                <div className="w-full h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (days / 30) * 100)}%`,
+                      background: isSel
+                        ? "linear-gradient(to right, rgba(0,180,255,0.6), rgba(0,212,255,0.9))"
+                        : "rgba(100,140,200,0.3)",
+                    }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer hint */}
+      <div
+        className="px-3 py-1.5 text-center"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+      >
+        <p className="text-xs" style={{ color: "rgba(100,130,170,0.45)" }}>
+          Longer expiry → more time · Higher premium
+        </p>
+      </div>
+    </div>
+  );
+}
+

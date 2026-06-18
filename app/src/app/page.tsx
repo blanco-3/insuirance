@@ -29,15 +29,29 @@ export default function Home() {
       {/* Main */}
       <main className="flex flex-1 flex-col items-center px-4 py-12">
         <div className="max-w-lg w-full space-y-4">
-          <div className="text-center space-y-2 mb-8">
-            <h1 className="text-4xl font-bold tracking-tight">
-              Insuirance
-            </h1>
-            <p className="text-gray-400 text-lg">
-              Buy BTC downside cover — or earn yield as the house.
+          {/* Hero */}
+          <div className="text-center space-y-3 mb-8 relative">
+            {/* wave strip */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-screen overflow-hidden h-10 pointer-events-none opacity-30">
+              <svg viewBox="0 0 2880 40" preserveAspectRatio="none"
+                className="wave-anim absolute top-0"
+                style={{ width: "200%", height: "100%", animationDuration: "7s" }}>
+                <path d="M0,20 C240,38 480,2 720,20 C960,38 1200,2 1440,20 C1680,38 1920,2 2160,20 C2400,38 2640,2 2880,20 L2880,40 L0,40 Z"
+                  fill="rgba(0,180,255,0.5)" />
+              </svg>
+            </div>
+
+            <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "rgba(0,212,255,0.6)" }}>
+              🐡 Insuirance
             </p>
-            <p className="text-gray-600 text-sm">
-              Powered by DeepBook Predict · Settles onchain, automatically.
+            <h1 className="text-4xl font-bold tracking-tight leading-tight">
+              Surface storms don&apos;t<br />reach the deep.
+            </h1>
+            <p className="text-sm" style={{ color: "rgba(180,220,255,0.55)" }}>
+              BTC crashes on the surface — your cover lives in the deep with DeepBook.
+            </p>
+            <p className="text-xs" style={{ color: "rgba(120,160,200,0.4)" }}>
+              Settles onchain, automatically · Sui Testnet
             </p>
           </div>
 

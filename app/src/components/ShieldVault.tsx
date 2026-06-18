@@ -6,6 +6,7 @@ import {
   useSuiClientQuery,
   useSignAndExecuteTransaction,
 } from "@mysten/dapp-kit";
+import { DepthAnimation } from "@/components/DepthAnimation";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   PREDICT_ID,
@@ -52,6 +53,7 @@ export function ShieldVault({ address }: Props) {
   const [error, setError] = useState("");
   const [successTx, setSuccessTx] = useState("");
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [showDepthAnim, setShowDepthAnim] = useState(false);
 
   // User's VaultShare NFTs
   const { data: shareData, refetch: refetchShares } = useSuiClientQuery(
@@ -164,6 +166,7 @@ export function ShieldVault({ address }: Props) {
       const result = await signAndExecute({ transaction: tx });
       setSuccessTx(result.digest);
       setAmount("");
+      setShowDepthAnim(true);
       refetchShares();
     } catch (e: any) {
       setError(e.message ?? "Transaction failed");
@@ -203,6 +206,10 @@ export function ShieldVault({ address }: Props) {
     : null;
 
   return (
+    <>
+    {showDepthAnim && (
+      <DepthAnimation type="deposit" onDone={() => setShowDepthAnim(false)} />
+    )}
     <div className="space-y-4 mt-8">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">ShieldVault</h2>
@@ -338,6 +345,7 @@ export function ShieldVault({ address }: Props) {
         </div>
       )}
     </div>
+    </>
   );
 }
 

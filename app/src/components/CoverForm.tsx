@@ -84,7 +84,6 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [error, setError]               = useState<string | null>(null);
   const [view, setView]                 = useState<"buy" | "deposit">("buy");
   const [showDepthAnim, setShowDepthAnim] = useState(false);
-  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
 
   // dUSDC wallet balance
   const { data: dusdcCoins, refetch: refetchCoins } = useSuiClientQuery(
@@ -439,7 +438,12 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
             {/* Custom trigger toggles */}
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Coverage Triggers</label>
+              <label className="text-sm text-gray-400">
+                Coverage Triggers
+                <span className="ml-2 text-xs text-gray-600">
+                  {selectedTriggers.size > 1 ? `(${selectedTriggers.size} active)` : "· tap to add more"}
+                </span>
+              </label>
               <div className="flex gap-2">
                 {TRIGGERS.map((t) => {
                   const isOn   = selectedTriggers.has(t.bps.toString());
@@ -824,14 +828,28 @@ function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
         </div>
       </div>
 
-      {/* Footer hint */}
+      {/* Footer nav */}
       <div
-        className="px-3 py-1.5 text-center"
+        className="flex items-center gap-1 px-2 py-1"
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <p className="text-xs" style={{ color: "rgba(100,130,170,0.45)" }}>
+        <button
+          onClick={() => scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" })}
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-gray-600 hover:text-gray-200 hover:bg-white/8 transition-colors"
+          aria-label="Scroll left"
+        >
+          ‹
+        </button>
+        <p className="flex-1 text-xs text-center" style={{ color: "rgba(100,130,170,0.40)" }}>
           Longer expiry → more time · Higher premium
         </p>
+        <button
+          onClick={() => scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" })}
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-gray-600 hover:text-gray-200 hover:bg-white/8 transition-colors"
+          aria-label="Scroll right"
+        >
+          ›
+        </button>
       </div>
     </div>
   );

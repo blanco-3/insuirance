@@ -43,3 +43,23 @@ body {
   50%       { transform: translateY(-8px) scale(1.4); opacity: 1;   }
 }
 .biolum-anim { animation: biolum-float ease-in-out infinite; }
+
+/* ── Storm rain streaks ── */
+@keyframes storm-rain {
+  0%   { transform: translateY(-15px) rotate(-18deg); opacity: 0; }
+  6%   { opacity: 1; }
+  88%  { opacity: 0.55; }
+  100% { transform: translateY(240px) rotate(-18deg); opacity: 0; }
+}
+.storm-rain { animation: storm-rain linear infinite; }
+
+/* ── Lightning flash ── */
+@keyframes storm-lightning {
+  0%,84%,86.5%,89.5%,92%,100% { opacity: 0; }
+  85%  { opacity: 0.82; }
+  87%  { opacity: 0.06; }
+  88%  { opacity: 0.92; }
+  90%  { opacity: 0.04; }
+  91%  { opacity: 0.68; }
+}
+.storm-lightning { animation: storm-lightning ease-in-out infinite; }

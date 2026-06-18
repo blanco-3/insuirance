@@ -49,7 +49,12 @@ export default function Home() {
             {/* Storm scene */}
             <div
               className="absolute left-1/2 -translate-x-1/2 w-screen overflow-hidden pointer-events-none"
-              style={{ top: -64, height: 220 }}
+              style={{
+                top: -64,
+                height: 260,
+                WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 100%)",
+                maskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 100%)",
+              }}
             >
               {/* Storm sky gradient */}
               <div
@@ -164,14 +169,6 @@ export default function Home() {
                   fill="none"
                 />
               </svg>
-              {/* Bottom fade — storm dissolves seamlessly into page background */}
-              <div
-                className="absolute bottom-0 left-0 right-0 pointer-events-none"
-                style={{
-                  height: 100,
-                  background: "linear-gradient(to bottom, transparent 0%, rgba(8,20,44,0.70) 55%, rgba(10,31,53,0.97) 100%)",
-                }}
-              />
             </div>
 
             {/* Text — must be relative+z-index to paint above absolute storm scene */}
@@ -207,7 +204,7 @@ export default function Home() {
                         : "text-gray-500 hover:text-gray-300"
                     }`}
                   >
-                    {t === "cover" ? "🛡️ Buy Cover" : "💰 Earn Yield"}
+                    {t === "cover" ? "Buy Cover" : "Earn Yield"}
                   </button>
                 ))}
               </div>
@@ -226,12 +223,11 @@ export default function Home() {
             <div className="space-y-6">
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { icon: "🛡️", title: "Buy Cover", desc: "Auto payout if BTC drops below strike" },
-                  { icon: "💰", title: "Earn Yield", desc: "LP to Predict vault, earn premiums" },
-                  { icon: "⛓️", title: "Onchain", desc: "Oracle settles trustlessly" },
+                  { title: "Buy Cover", desc: "Auto payout if BTC drops below strike" },
+                  { title: "Earn Yield", desc: "LP to Predict vault, earn premiums" },
+                  { title: "Onchain", desc: "Oracle settles trustlessly" },
                 ].map((c) => (
                   <div key={c.title} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center space-y-1">
-                    <div className="text-2xl">{c.icon}</div>
                     <p className="text-sm font-semibold">{c.title}</p>
                     <p className="text-xs text-gray-500">{c.desc}</p>
                   </div>

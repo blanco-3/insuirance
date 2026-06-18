@@ -84,6 +84,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [error, setError]               = useState<string | null>(null);
   const [view, setView]                 = useState<"buy" | "deposit">("buy");
   const [showDepthAnim, setShowDepthAnim] = useState(false);
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
 
   // dUSDC wallet balance
   const { data: dusdcCoins, refetch: refetchCoins } = useSuiClientQuery(
@@ -463,35 +464,20 @@ export function CoverForm({ address, suggestedCover }: Props) {
               </div>
             </div>
 
-            {/* Expiry */}
+            {/* Expiry — pill trigger + modal picker */}
             <div className="space-y-2">
               <label className="text-sm text-gray-400">Expiry</label>
               {oracles.length === 0 ? (
                 <p className="text-sm text-gray-500">Loading markets…</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {oracles.map((o) => {
-                    const d       = new Date(o.expiry);
-                    const dateStr = d.toLocaleDateString("en-US",  { month: "short", day: "numeric", timeZone: "UTC" });
-                    const timeStr = d.toLocaleTimeString("en-US",  { hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
-                    const isSel   = oracleOption?.id === o.id;
-                    return (
-                      <button
-                        key={o.id}
-                        onClick={() => setOracleOption(o)}
-                        className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                          isSel
-                            ? "border-blue-500 bg-blue-600/20 text-white"
-                            : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-                        }`}
-                      >
-                        <p className="text-xs font-semibold">{o.underlying_asset}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{dateStr}</p>
-                        <p className="text-xs text-gray-500">{timeStr}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+                <ExpiryPicker
+                  oracles={oracles}
+                  selected={oracleOption}
+                  onSelect={(o) => { setOracleOption(o); setShowExpiryPicker(false); }}
+                  open={showExpiryPicker}
+                  onToggle={() => setShowExpiryPicker((v) => !v)}
+                  onClose={() => setShowExpiryPicker(false)}
+                />
               )}
             </div>
 
@@ -600,5 +586,180 @@ export function CoverForm({ address, suggestedCover }: Props) {
         </p>
       </div>
     </>
+  );
+}
+
+// ── ExpiryPicker ─────────────────────────────────────────────────────────────
+
+import { useRef, useEffect as useEffectRef } from "react";
+import { type OracleInfo as OI } from "@/lib/predict-api";
+
+function timeUntil(ms: number): { label: string; urgent: boolean } {
+  const diff = ms - Date.now();
+  if (diff <= 0) return { label: "Expired", urgent: true };
+  const d = Math.floor(diff / 86_400_000);
+  const h = Math.floor((diff % 86_400_000) / 3_600_000);
+  const m = Math.floor((diff % 3_600_000) / 60_000);
+  if (d > 0) return { label: `${d}d ${h}h`, urgent: d < 1 };
+  if (h > 0) return { label: `${h}h ${m}m`,  urgent: h < 6 };
+  return { label: `${m}m`, urgent: true };
+}
+
+interface ExpiryPickerProps {
+  oracles:  OI[];
+  selected: OI | null;
+  onSelect: (o: OI) => void;
+  open:     boolean;
+  onToggle: () => void;
+  onClose:  () => void;
+}
+
+function ExpiryPicker({ oracles, selected, onSelect, open, onToggle, onClose }: ExpiryPickerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // close on outside click
+  useEffectRef(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, onClose]);
+
+  const selExpiry = selected ? new Date(selected.expiry) : null;
+  const selDateStr = selExpiry?.toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
+  const selTimeStr = selExpiry?.toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
+  });
+  const selTimer = selected ? timeUntil(selected.expiry) : null;
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* ── Trigger pill ── */}
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
+          open
+            ? "border-blue-500/60 bg-blue-950/30"
+            : "border-white/10 bg-white/5 hover:bg-white/8 hover:border-white/20"
+        }`}
+      >
+        {selected ? (
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-xs font-bold text-white/60 uppercase tracking-wider shrink-0">
+              {selected.underlying_asset}
+            </span>
+            <span className="font-mono text-sm text-white font-semibold truncate">
+              {selDateStr}
+            </span>
+            <span className="text-xs text-gray-500 shrink-0">{selTimeStr}</span>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-500">Select expiry…</span>
+        )}
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {selTimer && (
+            <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+              selTimer.urgent
+                ? "bg-red-900/50 text-red-300"
+                : "bg-white/8 text-gray-400"
+            }`}>
+              {selTimer.label}
+            </span>
+          )}
+          <svg
+            className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            viewBox="0 0 16 16" fill="currentColor"
+          >
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </button>
+
+      {/* ── Dropdown panel ── */}
+      {open && (
+        <div
+          className="absolute left-0 right-0 top-full mt-2 z-40 rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+          style={{
+            background: "rgba(4, 15, 30, 0.97)",
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
+          }}
+        >
+          <div className="px-4 pt-3 pb-2">
+            <p className="text-xs text-gray-600 uppercase tracking-widest font-medium">
+              Select expiry date
+            </p>
+          </div>
+
+          <div className="divide-y divide-white/[0.05]">
+            {oracles.map((o) => {
+              const d       = new Date(o.expiry);
+              const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+              const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
+              const timer   = timeUntil(o.expiry);
+              const isSel   = selected?.id === o.id;
+
+              // days until expiry — used to color the expiry distance bar
+              const daysLeft = Math.max(0, (o.expiry - Date.now()) / 86_400_000);
+              const barW = Math.min(100, (daysLeft / 30) * 100); // normalise to 30 days
+
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => onSelect(o)}
+                  className={`w-full flex items-center gap-4 px-4 py-3.5 text-left transition-colors ${
+                    isSel
+                      ? "bg-blue-600/20"
+                      : "hover:bg-white/[0.04]"
+                  }`}
+                >
+                  {/* Selected indicator */}
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSel ? "bg-blue-400" : "bg-white/10"}`} />
+
+                  {/* Main info */}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white/50 uppercase tracking-wider">{o.underlying_asset}</span>
+                      <span className="font-mono text-sm text-white font-semibold">{dateStr}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500">{timeStr}</span>
+                      {/* Time bar */}
+                      <div className="flex-1 h-0.5 rounded-full bg-white/8 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${timer.urgent ? "bg-red-500/60" : "bg-blue-500/50"}`}
+                          style={{ width: `${barW}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Countdown pill */}
+                  <span className={`text-xs font-mono px-2.5 py-1 rounded-full shrink-0 ${
+                    isSel
+                      ? "bg-blue-500/25 text-blue-300"
+                      : timer.urgent
+                      ? "bg-red-900/40 text-red-400"
+                      : "bg-white/8 text-gray-400"
+                  }`}>
+                    {timer.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="px-4 py-2.5 border-t border-white/[0.05]">
+            <p className="text-xs text-gray-700">Longer expiry = more time for BTC to hit your strike</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -144,6 +144,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   useEffect(() => {
     if (!suggestedCover) return;
     setCoverAmount(suggestedCover);
+    setDepositAmount(suggestedCover);
     setActiveStrategy("Full Ladder");
     setSelectedTriggers(new Set(["500", "1000", "2000"]));
     setView("buy");
@@ -506,19 +507,26 @@ export function CoverForm({ address, suggestedCover }: Props) {
             <div className="rounded-xl bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-4 space-y-3">
               <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Payout Scenarios</p>
               <div className="space-y-2">
-                {activeTriggers.map((t, i) => {
+                {activeTriggers.map((t) => {
                   const strike = computeStrike(spotRaw, t.bps);
-                  const cumPayout = coverRaw * BigInt(i + 1);
                   return (
                     <div key={t.bps.toString()} className="flex items-center gap-3 text-sm">
                       <span className="text-gray-500 w-14 shrink-0">≥{t.label} drop</span>
                       <span className="text-gray-400 font-mono text-xs">→ {formatUsd(strike)}</span>
                       <span className="ml-auto font-mono text-green-400 font-semibold">
-                        +{formatDusdc(cumPayout)}
+                        +{formatDusdc(coverRaw)}
                       </span>
                     </div>
                   );
                 })}
+              {activeTriggers.length > 1 && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10 text-gray-500">
+                    <span>Total (if all {activeTriggers.length} fire)</span>
+                    <span className="font-mono text-green-300 font-semibold">
+                      +{formatDusdc(coverRaw * BigInt(activeTriggers.length))}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="border-t border-white/10 pt-2 grid grid-cols-2 gap-2 text-xs">
                 <div>

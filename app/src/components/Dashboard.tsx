@@ -213,7 +213,7 @@ export function Dashboard({ address }: Props) {
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-500 uppercase tracking-wider">Recent Activity</p>
             {totalPolicies !== null && (
-              <span className="text-xs text-gray-500">{totalPolicies}+ policies issued</span>
+              <span className="text-xs text-gray-500">{totalPolicies}{totalPolicies >= 20 ? "+" : ""} policies issued</span>
             )}
           </div>
           <div className="space-y-2">

@@ -196,11 +196,10 @@ export function ShieldVault({ address }: Props) {
     }
   }
 
-  // APY estimate: (plp_share_price - 1) annualised assuming linear
-  // Share price starts at 1.0 and grows as premiums accrue
-  // plp_share_price = 1.000994 means 0.0994% total earned so far
-  const apyEstimate = predictSummary
-    ? ((predictSummary.plp_share_price - 1) * 365 * 100).toFixed(1)
+  // Total return since vault inception (share price starts at 1.0)
+  // e.g. plp_share_price = 1.000994 → +0.099% total earned so far
+  const totalReturn = predictSummary
+    ? ((predictSummary.plp_share_price - 1) * 100).toFixed(3)
     : null;
 
   return (
@@ -208,8 +207,8 @@ export function ShieldVault({ address }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">ShieldVault</h2>
         <div className="flex items-center gap-2">
-          {apyEstimate && (
-            <span className="text-xs font-mono text-emerald-400">~{apyEstimate}% APY</span>
+          {totalReturn && (
+            <span className="text-xs font-mono text-emerald-400">+{totalReturn}% since inception</span>
           )}
           <span className="text-xs bg-emerald-700 text-white px-2 py-0.5 rounded-full">
             LP Yield

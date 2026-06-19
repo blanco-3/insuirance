@@ -23,6 +23,7 @@ import {
   type SVIParams,
 } from "@/lib/predict-api";
 import { DepthAnimation } from "@/components/DepthAnimation";
+import { parseError } from "@/lib/parseError";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
 const CLOCK_ID = "0x6";
@@ -157,8 +158,15 @@ export function CoverForm({ address, suggestedCover }: Props) {
   useEffect(() => {
     getActiveOracles()
       .then((list) => {
-        setOracles(list);
-        if (list.length > 0) setOracleOption(list[0]);
+        // Deduplicate by expiry timestamp — multiple oracle IDs can share the same expiry date
+        const seen = new Set<number>();
+        const deduped = list.filter((o) => {
+          if (seen.has(o.expiry)) return false;
+          seen.add(o.expiry);
+          return true;
+        });
+        setOracles(deduped);
+        if (deduped.length > 0) setOracleOption(deduped[0]);
       })
       .catch(() => {});
   }, []);
@@ -239,7 +247,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
       } else {
         setError("Manager created but could not find ID — refresh the page");
       }
-    } catch (e: any) { setError(e.message ?? "Transaction failed"); }
+    } catch (e: any) {
+      const msg = parseError(e);
+      if (msg) setError(msg);
+    }
   }
 
   async function handleDeposit() {
@@ -267,7 +278,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
       refetchCoins();
       setManagerBalance(await fetchOnChainBalance(managerId));
       setView("buy");
-    } catch (e: any) { setError(e.message ?? "Deposit failed"); }
+    } catch (e: any) {
+      const msg = parseError(e);
+      if (msg) setError(msg);
+    }
   }
 
   async function handleBuyCover() {
@@ -317,7 +331,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
       setTxDigest(result.digest);
       setShowDepthAnim(true);
       setManagerBalance(await fetchOnChainBalance(managerId));
-    } catch (e: any) { setError(e.message ?? "Transaction failed"); }
+    } catch (e: any) {
+      const msg = parseError(e);
+      if (msg) setError(msg);
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -332,11 +349,30 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   if (!managerId) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
         <div>
-          <h2 className="font-semibold text-lg">Set Up Your Account</h2>
-          <p className="text-sm text-gray-400 mt-1">One-time setup to start buying cover.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-5 h-5 rounded-full bg-blue-600 text-xs flex items-center justify-center font-bold shrink-0">1</span>
+            <h2 className="font-semibold text-lg">One-Time Account Setup</h2>
+          </div>
+          <p className="text-sm text-gray-400 ml-7">
+            Insuirance uses a <strong className="text-gray-300">PredictManager</strong> — a DeepBook Predict account that holds your dUSDC and signs option trades on your behalf. This is a one-time onchain transaction.
+          </p>
         </div>
+
+        <div className="ml-7 space-y-2 text-xs text-gray-500">
+          {[
+            { n: "1", t: "Create Manager", d: "Deploy your personal PredictManager (this step)" },
+            { n: "2", t: "Deposit dUSDC",  d: "Fund your manager — used to pay option premiums" },
+            { n: "3", t: "Buy Cover",       d: "Pick strike & expiry, mint Policy NFT onchain" },
+          ].map((s) => (
+            <div key={s.n} className="flex gap-2">
+              <span className="shrink-0 mt-0.5" style={{ color: "rgba(42,212,255,.5)" }}>→</span>
+              <span><strong className="text-gray-300">{s.t}</strong> — {s.d}</span>
+            </div>
+          ))}
+        </div>
+
         {error    && <p className="text-sm text-red-400 bg-red-950/30 border border-red-800/40 rounded-lg px-4 py-2">{error}</p>}
         {txDigest && <p className="text-sm text-green-400">Done! tx: {txDigest.slice(0, 16)}…</p>}
         <button
@@ -344,8 +380,9 @@ export function CoverForm({ address, suggestedCover }: Props) {
           disabled={isPending}
           className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-3 font-semibold transition-colors"
         >
-          {isPending ? "Creating…" : "Create Manager"}
+          {isPending ? "Creating…" : "Create Manager (Step 1 of 3)"}
         </button>
+        <p className="text-xs text-gray-600 text-center">Requires SUI for gas · One-time only · Stored in your wallet</p>
       </div>
     );
   }
@@ -389,6 +426,15 @@ export function CoverForm({ address, suggestedCover }: Props) {
               />
               <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
             </div>
+            {walletBalance === 0n && (
+              <div className="rounded-lg px-3 py-2.5 text-xs space-y-1" style={{ background: "rgba(42,212,255,.06)", border: "1px solid rgba(42,212,255,.12)" }}>
+                <p className="font-semibold" style={{ color: "#2ad4ff" }}>Need dUSDC?</p>
+                <p style={{ color: "rgba(160,200,230,.6)" }}>
+                  Mint testnet dUSDC via the DeepBook Predict faucet on Sui testnet.
+                  Use the Sui Discord <span style={{ color: "rgba(42,212,255,.8)" }}>#testnet-faucet</span> to get SUI gas first.
+                </p>
+              </div>
+            )}
             {error    && <p className="text-sm text-red-400">{error}</p>}
             {txDigest && <p className="text-sm text-green-400">Deposited! tx: {txDigest.slice(0, 16)}…</p>}
             <button

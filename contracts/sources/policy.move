@@ -20,9 +20,9 @@ const STATUS_EXPIRED_NOPAY: u8 = 2;
 
 // ── Error codes ─────────────────────────────────────────────────────────────
 const EPremiumTooHigh: u64 = 0;
-const ENotOwner: u64 = 1;
 const ENotSettled: u64 = 2;
 const EAlreadyClaimed: u64 = 3;
+const EWrongOracle: u64 = 4;
 
 // ── Objects ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +130,7 @@ public fun claim<Quote>(
     ctx: &mut TxContext,
 ) {
     assert!(policy.status == STATUS_ACTIVE, EAlreadyClaimed);
+    assert!(oracle.id() == policy.oracle_id, EWrongOracle);
     assert!(oracle.is_settled(), ENotSettled);
 
     // settlement_price() returns Option<u64>; safe to unwrap since is_settled() == true
@@ -174,3 +175,50 @@ public fun compute_strike(spot: u64, drop_bps: u64, tick_size: u64): u64 {
     let raw = spot * (10_000 - drop_bps) / 10_000;
     (raw / tick_size) * tick_size
 }
+
+// ── Test-only helpers ─────────────────────────────────────────────────────────
+
+#[test_only]
+/// Construct a Policy directly for unit testing (bypasses buy_cover / Predict).
+public fun new_for_testing(
+    oracle_id: ID,
+    expiry: u64,
+    strike: u64,
+    quantity: u64,
+    asset: vector<u8>,
+    manager_id: ID,
+    ctx: &mut TxContext,
+): Policy {
+    Policy {
+        id: object::new(ctx),
+        owner: ctx.sender(),
+        oracle_id,
+        expiry,
+        strike,
+        quantity,
+        premium_paid: 0,
+        asset,
+        manager_id,
+        status: STATUS_ACTIVE,
+    }
+}
+
+#[test_only]
+/// Set status directly for testing state transitions.
+public fun set_status_for_testing(policy: &mut Policy, status: u8) {
+    policy.status = status;
+}
+
+#[test_only]
+public fun destroy_for_testing(policy: Policy) {
+    let Policy { id, .. } = policy;
+    object::delete(id);
+}
+
+#[test_only]
+/// Asserts that a policy can still be claimed. Aborts with EAlreadyClaimed if not.
+/// Used in tests to verify the double-claim protection.
+public fun assert_claimable_for_testing(policy: &Policy) {
+    assert!(policy.status == STATUS_ACTIVE, EAlreadyClaimed);
+}
+

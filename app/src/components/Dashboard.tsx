@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSuiClient } from "@mysten/dapp-kit";
+import { useEffect, useRef, useState } from "react";
+import { useSuiClient, useSuiClientQuery } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   PREDICT_PACKAGE,
@@ -17,6 +17,185 @@ import {
 
 // Re-read from env directly for Dashboard since predict-api doesn't export it
 const INSUIRANCE_PKG = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
+
+// ── BTC sparkline ─────────────────────────────────────────────────────────────
+
+const SPARK_W = 400;
+const SPARK_H = 64;
+const SPARK_PAD = 8;
+
+function buildSparkPath(prices: number[]) {
+  const midY = SPARK_H / 2;
+  if (prices.length < 2) {
+    return {
+      line:  `M${SPARK_PAD},${midY} L${SPARK_W - SPARK_PAD},${midY}`,
+      area:  `M${SPARK_PAD},${midY} L${SPARK_W - SPARK_PAD},${midY} L${SPARK_W - SPARK_PAD},${SPARK_H} L${SPARK_PAD},${SPARK_H} Z`,
+      lastX: SPARK_W - SPARK_PAD,
+      lastY: midY,
+    };
+  }
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+
+  const pts = prices.map((p, i) => ({
+    x: SPARK_PAD + (i / (prices.length - 1)) * (SPARK_W - SPARK_PAD * 2),
+    y: SPARK_PAD + (1 - (p - min) / range) * (SPARK_H - SPARK_PAD * 2),
+  }));
+
+  const line = pts.map((pt, i) => `${i === 0 ? "M" : "L"}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
+  const last = pts[pts.length - 1];
+  const area = `${line} L${last.x.toFixed(1)},${SPARK_H} L${SPARK_PAD},${SPARK_H} Z`;
+
+  return { line, area, lastX: last.x, lastY: last.y };
+}
+
+interface OraclePriceChartProps {
+  oracleId: string;
+  asset: string;
+  initialFormatted: string;
+}
+
+function toBinanceStream(asset: string): string | null {
+  const a = asset.toLowerCase().replace(/[^a-z]/g, "");
+  if (a === "btc") return "btcusdt@trade";
+  if (a === "eth") return "ethusdt@trade";
+  return null;
+}
+
+function OraclePriceChart({ oracleId, asset, initialFormatted }: OraclePriceChartProps) {
+  const [prices,    setPrices]    = useState<number[]>([]);
+  const [display,   setDisplay]   = useState(initialFormatted);
+  const [changePct, setChangePct] = useState(0);
+  const [isLive,    setIsLive]    = useState(false);
+  const pricesRef    = useRef<number[]>([]);
+  const firstRef     = useRef<number | null>(null);
+  const lastTickRef  = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let ws: WebSocket | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    function push(priceUsd: number) {
+      if (cancelled) return;
+      const now = Date.now();
+      if (now - lastTickRef.current < 500) return;
+      lastTickRef.current = now;
+      const raw  = Math.round(priceUsd * 1_000_000);
+      const next = [...pricesRef.current, raw].slice(-120);
+      pricesRef.current = next;
+      if (firstRef.current === null) firstRef.current = raw;
+      const pct = firstRef.current ? (raw - firstRef.current) / firstRef.current * 100 : 0;
+      setDisplay("$" + priceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      setPrices([...next]);
+      setChangePct(pct);
+    }
+
+    function startOraclePoll() {
+      async function poll() {
+        if (cancelled) return;
+        try {
+          const p = await getOraclePrice(oracleId);
+          if (!cancelled) push(Number(BigInt(p.spot)) / 1_000_000);
+        } catch {}
+      }
+      poll();
+      pollTimer = setInterval(poll, 5_000);
+    }
+
+    const stream = toBinanceStream(asset);
+    if (stream) {
+      try {
+        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${stream}`);
+        ws.onopen    = () => { if (!cancelled) setIsLive(true); };
+        ws.onmessage = (evt) => { push(parseFloat(JSON.parse(evt.data).p)); };
+        ws.onerror   = () => { if (!cancelled) { setIsLive(false); startOraclePoll(); } };
+        ws.onclose   = () => { if (!cancelled) { setIsLive(false); startOraclePoll(); } };
+      } catch {
+        startOraclePoll();
+      }
+    } else {
+      startOraclePoll();
+    }
+
+    return () => {
+      cancelled = true;
+      ws?.close();
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [oracleId, asset]);
+
+  const { line, area, lastX, lastY } = buildSparkPath(prices);
+  const up = changePct >= 0;
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "rgba(4,14,30,.65)", border: "1px solid rgba(96,165,222,.12)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-0">
+        <div>
+          <p className="text-xs uppercase tracking-wider" style={{ color: "rgba(120,160,200,.5)" }}>
+            {asset} / USD
+          </p>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span key={display} className="text-2xl font-bold font-mono price-update">{display}</span>
+            {prices.length >= 2 && (
+              <span className={`font-mono text-xs ${up ? "text-green-400" : "text-red-400"}`}>
+                {up ? "+" : ""}{changePct.toFixed(3)}%
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pb-1">
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              background: isLive ? "#2ad4ff" : "#94a3b8",
+              boxShadow: isLive ? "0 0 5px #2ad4ff" : "none",
+              animation: isLive ? "pulse 2s ease-in-out infinite" : "none",
+            }}
+          />
+          <span className="font-mono text-xs" style={{ color: isLive ? "rgba(42,212,255,.6)" : "rgba(148,163,184,.5)" }}>
+            {isLive ? "LIVE" : "5s"}
+          </span>
+        </div>
+      </div>
+
+      {/* Sparkline */}
+      <svg
+        viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+        preserveAspectRatio="none"
+        style={{ width: "100%", height: SPARK_H, display: "block" }}
+      >
+        <defs>
+          <linearGradient id="dsFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="rgba(42,212,255,.14)" />
+            <stop offset="100%" stopColor="rgba(42,212,255,.01)" />
+          </linearGradient>
+          <linearGradient id="dsLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="rgba(42,212,255,.25)" />
+            <stop offset="100%" stopColor="rgba(42,212,255,.9)" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#dsFill)" />
+        <path d={line} stroke="url(#dsLine)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={lastX} cy={lastY} r="3" fill="#2ad4ff" />
+        <circle cx={lastX} cy={lastY} r="3" fill="none" stroke="rgba(42,212,255,.3)" strokeWidth="5">
+          <animate attributeName="r" values="3;7;3" dur="2.5s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="1;0;1" dur="2.5s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+
+      {/* Footer */}
+      <p className="text-right px-3 pb-2 font-mono" style={{ fontSize: 9, color: "rgba(120,165,210,.28)", letterSpacing: "0.06em" }}>
+        {isLive ? "Binance spot · real-time" : "DeepBook oracle · 5s"}
+      </p>
+    </div>
+  );
+}
 const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 
 interface Props {
@@ -35,8 +214,18 @@ interface RecentEvent {
   timestampMs: string | null;
 }
 
+const SUI_GAS_WARN_THRESHOLD = 50_000_000n; // 0.05 SUI
+
 export function Dashboard({ address }: Props) {
   const client = useSuiClient();
+
+  const { data: suiBalData } = useSuiClientQuery(
+    "getBalance",
+    { owner: address, coinType: "0x2::sui::SUI" },
+    { refetchInterval: 30_000 }
+  );
+  const suiBalance = suiBalData ? BigInt(suiBalData.totalBalance) : null;
+  const lowGas = suiBalance !== null && suiBalance < SUI_GAS_WARN_THRESHOLD;
 
   const [managerBalance, setManagerBalance] = useState<bigint | null>(null);
   const [vault, setVault] = useState<VaultSummary | null>(null);
@@ -113,7 +302,7 @@ export function Dashboard({ address }: Props) {
                 const p = e.parsedJson as any;
                 return {
                   id: e.id.txDigest,
-                  buyer: p?.buyer ?? e.sender ?? "unknown",
+                  buyer: p?.owner ?? e.sender ?? "unknown",
                   asset: p?.asset ?? "BTC",
                   timestampMs: e.timestampMs ?? null,
                 };
@@ -150,23 +339,28 @@ export function Dashboard({ address }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Live prices — prominent */}
+      {/* SUI gas warning */}
+      {lowGas && (
+        <div
+          className="rounded-xl px-4 py-3 text-xs"
+          style={{ background: "rgba(234,179,8,.08)", border: "1px solid rgba(234,179,8,.2)", color: "rgba(253,224,71,.85)" }}
+        >
+          <span className="font-semibold">Low SUI balance</span> — you may not have enough gas for transactions.
+          Get testnet SUI from the Sui Discord{" "}
+          <span style={{ color: "rgba(253,224,71,1)", fontFamily: "monospace" }}>#testnet-faucet</span>.
+        </div>
+      )}
+
+      {/* Live price sparkline — prominent */}
       {oraclesWithPrice.length > 0 && (
         <div className="grid grid-cols-1 gap-2">
           {oraclesWithPrice.map((o) => (
-            <div
+            <OraclePriceChart
               key={o.id}
-              className="rounded-xl border border-white/10 bg-gradient-to-r from-blue-950/30 to-white/5 px-4 py-3 flex items-center justify-between"
-            >
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">{o.underlying_asset} / USD</p>
-                <p className="text-2xl font-bold font-mono">{o.spotFormatted}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-500">Oracle</p>
-                <p className="text-xs font-mono text-gray-400">{o.id.slice(0, 8)}…</p>
-              </div>
-            </div>
+              oracleId={o.id}
+              asset={o.underlying_asset}
+              initialFormatted={o.spotFormatted}
+            />
           ))}
         </div>
       )}
@@ -181,6 +375,7 @@ export function Dashboard({ address }: Props) {
         <StatCard
           label="Vault Available"
           value={vault ? formatDusdc(BigInt(vault.available_liquidity)) : "—"}
+          sub="testnet dUSDC · not real funds"
         />
       </div>
 

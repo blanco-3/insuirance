@@ -7,6 +7,7 @@ import { PolicyList } from "@/components/PolicyList";
 import { Dashboard } from "@/components/Dashboard";
 import { HedgeCalculator } from "@/components/HedgeCalculator";
 import { ShieldVault } from "@/components/ShieldVault";
+import { HeroLanding } from "@/components/HeroLanding";
 import { DepthAnimation } from "@/components/DepthAnimation";
 
 // Deterministic rain streak data — no Math.random() to avoid hydration mismatch
@@ -19,27 +20,64 @@ const rainStreaks = Array.from({ length: 40 }, (_, i) => ({
   width:    i % 5 === 0 ? 2 : 1,
 }));
 
+const INSUIRANCE_PKG  = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE  ?? "";
+const SHIELD_VAULT_ID = process.env.NEXT_PUBLIC_SHIELD_VAULT_ID ?? "";
+
 export default function Home() {
   const account = useCurrentAccount();
   const [suggestedCover, setSuggestedCover] = useState<string | undefined>();
   const [tab, setTab] = useState<"cover" | "vault">("cover");
-  const [showDevAnim, setShowDevAnim] = useState(false);
+  const [view, setView] = useState<"hero" | "app">("hero");
+
+  function launchApp() {
+    setView("app");
+    window.scrollTo(0, 0);
+  }
+
+  function goToHero() {
+    setView("hero");
+    window.scrollTo(0, 0);
+  }
+
+  if (view === "hero") {
+    return <HeroLanding onLaunchApp={launchApp} />;
+  }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {showDevAnim && (
-        <DepthAnimation type="cover" onDone={() => setShowDevAnim(false)} />
-      )}
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight">Insuirance</span>
-          <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
-            Testnet
+    <div className="app-enter flex flex-col min-h-screen">
+      {/* Nav — matches hero style */}
+      <nav
+        className="sticky top-0 z-50 flex items-center justify-between px-6 py-4"
+        style={{
+          background:           "rgba(3,11,22,.65)",
+          backdropFilter:       "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          borderBottom:         "1px solid rgba(96,165,222,.08)",
+        }}
+      >
+        <button
+          onClick={goToHero}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          <svg width="26" height="30" viewBox="0 0 32 32" fill="none" aria-hidden>
+            <rect width="32" height="32" rx="7" fill="#02080f"/>
+            <path d="M16 2 L28 7 L28 18 C28 25 22 29.5 16 32 C10 29.5 4 25 4 18 L4 7 Z"
+              fill="#0e3a58" stroke="#2ad4ff" strokeWidth="1.5"/>
+            <path d="M16 8 L22 11 L22 18 C22 22 19.5 25 16 26.5 C12.5 25 10 22 10 18 L10 11 Z"
+              fill="rgba(42,212,255,.18)"/>
+            <circle cx="16" cy="18" r="3.5" fill="#2ad4ff"/>
+          </svg>
+          <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>Insuirance</span>
+          <span
+            className="font-mono text-xs px-2 py-0.5 rounded-full"
+            style={{ background: "rgba(42,212,255,.12)", color: "#2ad4ff", letterSpacing: "0.06em" }}
+          >
+            TESTNET
           </span>
-        </div>
+        </button>
         <ConnectButton />
       </nav>
+
 
       {/* Main */}
       <main className="flex flex-1 flex-col items-center px-4 py-12">
@@ -111,7 +149,7 @@ export default function Home() {
                 <path d="M10,0 L4,20 L8,20 L1,44 L12,17 L6,17 Z" fill="rgba(215,240,255,0.90)" />
               </svg>
 
-              {/* Wave 1 — deep dark ground swell (slow) */}
+              {/* Wave 1 */}
               <svg
                 className="wave-anim absolute"
                 viewBox="0 0 2880 65"
@@ -123,8 +161,7 @@ export default function Home() {
                   fill="rgba(0,22,68,0.88)"
                 />
               </svg>
-
-              {/* Wave 2 — rolling mid swell */}
+              {/* Wave 2 */}
               <svg
                 className="wave-anim absolute"
                 viewBox="0 0 2880 55"
@@ -136,8 +173,7 @@ export default function Home() {
                   fill="rgba(0,50,120,0.72)"
                 />
               </svg>
-
-              {/* Wave 3 — choppy surface (fast) */}
+              {/* Wave 3 */}
               <svg
                 className="wave-anim absolute"
                 viewBox="0 0 2880 45"
@@ -149,8 +185,7 @@ export default function Home() {
                   fill="rgba(0,85,180,0.62)"
                 />
               </svg>
-
-              {/* Wave 4 — breaking whitecaps (very fast) */}
+              {/* Wave 4 */}
               <svg
                 className="wave-anim absolute"
                 viewBox="0 0 2880 36"
@@ -161,7 +196,6 @@ export default function Home() {
                   d="M0,18 C53,30 107,6 160,18 C213,30 267,6 320,18 C373,30 427,6 480,18 C533,30 587,6 640,18 C693,30 747,6 800,18 C853,30 907,6 960,18 C1013,30 1067,6 1120,18 C1173,30 1227,6 1280,18 C1333,30 1387,6 1440,18 C1493,30 1547,6 1600,18 C1653,30 1707,6 1760,18 C1813,30 1867,6 1920,18 C1973,30 2027,6 2080,18 C2133,30 2187,6 2240,18 C2293,30 2347,6 2400,18 C2453,30 2507,6 2560,18 C2613,30 2667,6 2720,18 C2773,30 2827,6 2880,18 L2880,36 L0,36 Z"
                   fill="rgba(55,145,240,0.48)"
                 />
-                {/* Spray line */}
                 <path
                   d="M0,18 C53,30 107,6 160,18 C213,30 267,6 320,18 C373,30 427,6 480,18 C533,30 587,6 640,18 C693,30 747,6 800,18 C853,30 907,6 960,18 C1013,30 1067,6 1120,18 C1173,30 1227,6 1280,18 C1333,30 1387,6 1440,18 C1493,30 1547,6 1600,18 C1653,30 1707,6 1760,18 C1813,30 1867,6 1920,18 C1973,30 2027,6 2080,18 C2133,30 2187,6 2240,18 C2293,30 2347,6 2400,18 C2453,30 2507,6 2560,18 C2613,30 2667,6 2720,18 C2773,30 2827,6 2880,18"
                   stroke="rgba(190,230,255,0.28)"
@@ -171,9 +205,9 @@ export default function Home() {
               </svg>
             </div>
 
-            {/* Text — must be relative+z-index to paint above absolute storm scene */}
+            {/* Text — relative+z-index to paint above absolute storm scene */}
             <div className="relative space-y-3 pt-2" style={{ zIndex: 1 }}>
-              <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "rgba(0,212,255,0.6)" }}>
+              <p className="text-xs font-mono tracking-widest uppercase" style={{ color: "rgba(42,212,255,0.6)" }}>
                 Insuirance
               </p>
               <h1 className="text-4xl font-bold tracking-tight leading-tight">
@@ -261,14 +295,59 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Dev: preview depth animation without spending tokens */}
-      <button
-        onClick={() => setShowDevAnim(true)}
-        title="Preview depth animation"
-        className="fixed bottom-6 left-4 text-xs font-mono text-gray-700 hover:text-gray-300 border border-white/5 hover:border-white/20 bg-black/20 hover:bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full transition-all"
+      {/* Footer */}
+      <footer
+        className="mt-auto px-6 py-6 text-center space-y-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,.04)" }}
       >
-        ⚡ depth anim
-      </button>
+        <div className="flex flex-wrap justify-center gap-4 text-xs" style={{ color: "rgba(120,160,200,.45)" }}>
+          {INSUIRANCE_PKG && (
+            <span className="font-mono">
+              Contract: {INSUIRANCE_PKG.slice(0, 10)}…{INSUIRANCE_PKG.slice(-6)}
+            </span>
+          )}
+          {SHIELD_VAULT_ID && (
+            <span className="font-mono">
+              Vault: {SHIELD_VAULT_ID.slice(0, 10)}…{SHIELD_VAULT_ID.slice(-6)}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap justify-center gap-5 text-xs" style={{ color: "rgba(120,160,200,.4)" }}>
+          <a
+            href="https://discord.gg/sui"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            Discord
+          </a>
+          <a
+            href="https://twitter.com/SuiNetwork"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            Twitter
+          </a>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            GitHub
+          </a>
+          <a
+            href="/terms"
+            className="hover:opacity-80 transition-opacity"
+          >
+            Terms
+          </a>
+        </div>
+        <p className="text-xs" style={{ color: "rgba(80,120,160,.25)" }}>
+          Insuirance · Built on Sui + DeepBook Predict · Testnet
+        </p>
+      </footer>
     </div>
   );
 }

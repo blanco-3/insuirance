@@ -15,6 +15,7 @@ import {
   getVaultSummary,
   type VaultSummary,
 } from "@/lib/predict-api";
+import { parseError } from "@/lib/parseError";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
 const SHIELD_VAULT_ID = process.env.NEXT_PUBLIC_SHIELD_VAULT_ID ?? "";
@@ -92,9 +93,12 @@ export function ShieldVault({ address }: Props) {
           // RPC returns { dataType, type, hasPublicTransfer, fields: { id, plp_balance, total_shares } }
           const fields = (obj.data?.content as any)?.fields;
           if (fields && !cancelled) {
+            // plp_balance is a Balance<PLP> — Sui RPC returns it as a nested object { fields: { value: "..." } }
+            // rather than a bare integer; handle both forms for safety.
+            const rawPlp = fields.plp_balance?.fields?.value ?? fields.plp_balance ?? "0";
             setVaultOnchain({
               total_shares: BigInt(fields.total_shares ?? "0"),
-              total_plp: BigInt(fields.plp_balance ?? "0"),
+              total_plp: BigInt(rawPlp),
             });
           }
         }
@@ -169,7 +173,7 @@ export function ShieldVault({ address }: Props) {
       setShowDepthAnim(true);
       refetchShares();
     } catch (e: any) {
-      setError(e.message ?? "Transaction failed");
+      setError(parseError(e) || "Transaction failed");
     }
   }
 
@@ -193,7 +197,7 @@ export function ShieldVault({ address }: Props) {
       setSuccessTx(result.digest);
       refetchShares();
     } catch (e: any) {
-      setError(e.message ?? "Withdraw failed");
+      setError(parseError(e) || "Withdraw failed");
     } finally {
       setWithdrawingId(null);
     }
@@ -297,6 +301,15 @@ export function ShieldVault({ address }: Props) {
           {isPending && !withdrawingId ? "Depositing…" : "Deposit & Earn"}
         </button>
 
+        {dusdcBalance === 0n && !loading && (
+          <div className="rounded-lg px-3 py-2.5 text-xs space-y-1" style={{ background: "rgba(42,212,255,.06)", border: "1px solid rgba(42,212,255,.12)" }}>
+            <p className="font-semibold" style={{ color: "#2ad4ff" }}>Need dUSDC?</p>
+            <p style={{ color: "rgba(160,200,230,.6)" }}>
+              Mint testnet dUSDC via the DeepBook Predict faucet on Sui testnet.
+              Get SUI gas from the Sui Discord <span style={{ color: "rgba(42,212,255,.8)" }}>#testnet-faucet</span> first.
+            </p>
+          </div>
+        )}
         {error && <p className="text-xs text-red-400">{error}</p>}
         {successTx && (
           <p className="text-xs text-green-400 break-all">

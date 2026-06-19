@@ -13,6 +13,7 @@ import {
   getOraclePrice,
   type OracleInfo,
 } from "@/lib/predict-api";
+import { parseError } from "@/lib/parseError";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
 const CLOCK_ID = "0x6";
@@ -152,7 +153,8 @@ export function PolicyList({ address }: Props) {
       setSuccesses((s) => ({ ...s, [policyId]: result.digest }));
       refetch();
     } catch (e: any) {
-      setErrors((err) => ({ ...err, [policyId]: e.message ?? "Claim failed" }));
+      const msg = parseError(e);
+      if (msg) setErrors((err) => ({ ...err, [policyId]: msg }));
     } finally {
       setClaimingId(null);
     }
@@ -185,6 +187,8 @@ export function PolicyList({ address }: Props) {
           ? BigInt(oracleInfo.settlement_price)
           : null;
         const hasPayout = isSettled && settlementPrice !== null && settlementPrice <= strike;
+        const msLeft = expiry - Date.now();
+        const expiringSoon = isActive && !isSettled && msLeft > 0 && msLeft < 86_400_000;
 
         // Live price stats (only for active oracles)
         const currentSpot = livePrices[oracleId] ?? null;
@@ -219,6 +223,11 @@ export function PolicyList({ address }: Props) {
                 {!hasPayout && inTheMoneyLive && isActive && !isSettled && (
                   <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
                     IN THE MONEY
+                  </span>
+                )}
+                {expiringSoon && (
+                  <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "rgba(234,179,8,.2)", color: "rgba(253,224,71,.9)" }}>
+                    EXPIRING SOON
                   </span>
                 )}
               </div>

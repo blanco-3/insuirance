@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020a12;
+  --background: #02080f;
   --foreground: #e8f4f8;
-  --ocean-deep: #020a12;
+  --ocean-deep: #02080f;
   --ocean-mid: #051525;
   --ocean-surface: #0d3a5c;
-  --biolum: #00d4ff;
+  --biolum: #2ad4ff;
 }
 
 @theme inline {
@@ -63,3 +63,52 @@ body {
   91%  { opacity: 0.68; }
 }
 .storm-lightning { animation: storm-lightning ease-in-out infinite; }
+
+/* ── Hero diver bob ── */
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-12px); }
+}
+.mascot-bob-anim { animation: mascot-bob 6s ease-in-out infinite; }
+
+/* ── "press anywhere" hint drift ── */
+@keyframes drift {
+  0%, 100% { transform: translateY(0);   opacity: 0.4; }
+  50%       { transform: translateY(-4px); opacity: 0.7; }
+}
+.drift-anim { animation: drift 3s ease-in-out infinite; }
+
+/* ── App view fade-in on launch ── */
+@keyframes app-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.app-enter { animation: app-enter 0.45s ease forwards; }
+
+/* ── Price update fade-in ── */
+@keyframes price-update {
+  from { opacity: 0.2; }
+  to   { opacity: 1; }
+}
+.price-update { animation: price-update 0.35s ease; }
+
+/* ── Mobile layout fixes ── */
+@media (max-width: 480px) {
+  /* Prevent horizontal overflow on small screens */
+  body { overflow-x: hidden; }
+
+  /* Nav: compact on very small screens */
+  nav { padding-left: 1rem; padding-right: 1rem; }
+
+  /* Main content: tighter side padding */
+  main { padding-left: 0.75rem; padding-right: 0.75rem; }
+
+  /* Hero headline: tighter on mobile */
+  h1 { font-size: 1.75rem; line-height: 1.2; }
+
+  /* Strategy grid: single column on very small screens */
+  .grid-cols-2 { grid-template-columns: 1fr 1fr; }
+
+  /* Connect button: prevent overflow */
+  [class*="ConnectButton"] { max-width: 160px; }
+}

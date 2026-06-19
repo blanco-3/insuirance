@@ -114,19 +114,14 @@ export function PolicyList({ address }: Props) {
     policyId: string,
     managerId: string,
     oracleId: string,
-    quantity: string,
-    strikeRaw: string
   ) {
     setClaimingId(policyId);
     setErrors((e) => ({ ...e, [policyId]: "" }));
     setSuccesses((s) => ({ ...s, [policyId]: "" }));
 
-    const oracle = getOracleInfo(oracleId);
-    const settlement = oracle?.settlement_price ? BigInt(oracle.settlement_price) : null;
-    const strikeVal = BigInt(strikeRaw);
-    const hasPayout = settlement !== null && settlement <= strikeVal;
-
     try {
+      // claim now handles payout internally: redeem → withdraw → transfer to owner.
+      // No second moveCall needed — single transaction is sufficient.
       const tx = new Transaction();
       tx.moveCall({
         target: `${INSUIRANCE_PACKAGE}::policy::claim`,
@@ -139,15 +134,6 @@ export function PolicyList({ address }: Props) {
           tx.object(CLOCK_ID),
         ],
       });
-
-      if (hasPayout) {
-        const coin = tx.moveCall({
-          target: `${PREDICT_PACKAGE}::predict_manager::withdraw`,
-          typeArguments: [DUSDC_TYPE],
-          arguments: [tx.object(normalizeId(managerId)), tx.pure.u64(BigInt(quantity))],
-        });
-        tx.transferObjects([coin], address);
-      }
 
       const result = await signAndExecute({ transaction: tx });
       setSuccesses((s) => ({ ...s, [policyId]: result.digest }));
@@ -310,7 +296,7 @@ export function PolicyList({ address }: Props) {
 
             {isActive && (
               <button
-                onClick={() => handleClaim(policyId, managerId, oracleId, quantity, String(strike))}
+                onClick={() => handleClaim(policyId, managerId, oracleId)}
                 disabled={(isPending && claimingId === policyId) || (!isSettled)}
                 className={`w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
                   hasPayout

@@ -1,0 +1,18 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_INSUIRANCE_PACKAGE=0xb2832b01656468017fdcd3fab7793fc3c70edfe2cc6c0dbae526cc1a51564e8a'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SHIELD_VAULT_ID=0xe5790d19867341dbe11e0dea0ea4be22b8d8c06d4cd3b5eda69afa78017e0f7a'
+      - '-t'
+      - 'asia-northeast3-docker.pkg.dev/pmpm-490718/cloud-run-source-deploy/insuirance:latest'
+      - '.'
+
+images:
+  - 'asia-northeast3-docker.pkg.dev/pmpm-490718/cloud-run-source-deploy/insuirance:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY

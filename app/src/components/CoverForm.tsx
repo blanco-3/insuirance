@@ -235,9 +235,19 @@ export function CoverForm({ address, suggestedCover }: Props) {
       const tx = new Transaction();
       tx.moveCall({ target: `${PREDICT_PACKAGE}::predict::create_manager`, arguments: [] });
       const result = await signAndExecute({ transaction: tx });
-      const fullTx = await client.getTransactionBlock({ digest: result.digest, options: { showEvents: true } });
-      const event  = fullTx.events?.find((e) => e.type.includes("PredictManagerCreated"));
-      const rawId  = (event?.parsedJson as any)?.manager_id as string | undefined;
+
+      // Retry fetching the tx block — RPC may not have indexed it yet
+      let fullTx: any = null;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        try {
+          fullTx = await client.getTransactionBlock({ digest: result.digest, options: { showEvents: true } });
+          break;
+        } catch {}
+      }
+
+      const event = fullTx?.events?.find((e: any) => e.type.includes("PredictManagerCreated"));
+      const rawId = (event?.parsedJson as any)?.manager_id as string | undefined;
       if (rawId) {
         const normalized = rawId.startsWith("0x") ? rawId : `0x${rawId}`;
         localStorage.setItem(MANAGER_KEY(address), normalized);

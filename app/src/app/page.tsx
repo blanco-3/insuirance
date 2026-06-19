@@ -217,7 +217,7 @@ export default function Home() {
                 BTC crashes on the surface — your cover lives in the deep with DeepBook.
               </p>
               <p className="text-xs" style={{ color: "rgba(120,160,200,0.4)" }}>
-                Settles onchain, automatically · Sui Testnet
+                One-click settlement · Fully onchain · Sui Testnet
               </p>
             </div>
           </div>
@@ -275,7 +275,7 @@ export default function Home() {
                   {[
                     { n: "1", title: "Calculate your exposure", desc: "Enter your BTC holdings to see exact dollar downside at 5%, 10%, 20% drops." },
                     { n: "2", title: "Buy cover or earn yield", desc: "Buy Cover: pick a strategy and get a Policy NFT. ShieldVault: deposit dUSDC and earn LP premiums." },
-                    { n: "3", title: "Settles automatically", desc: "Oracle confirms price at expiry. Cover holders receive dUSDC instantly — no claims, no humans." },
+                    { n: "3", title: "One-click settlement", desc: "Oracle confirms price at expiry. Click Claim — payout lands in your wallet instantly, fully onchain." },
                   ].map((s) => (
                     <div key={s.n} className="flex gap-3">
                       <span className="w-6 h-6 rounded-full bg-blue-600 text-xs flex items-center justify-center shrink-0 mt-0.5">{s.n}</span>

@@ -209,6 +209,15 @@ export function ShieldVault({ address }: Props) {
     ? ((predictSummary.plp_share_price - 1) * 100).toFixed(3)
     : null;
 
+  // Estimated APY — annualise the total return over days since testnet launch
+  const VAULT_LAUNCH_MS = Date.UTC(2026, 5, 15); // June 15 2026 — testnet deploy date
+  const estApy = predictSummary && predictSummary.plp_share_price > 1
+    ? (() => {
+        const daysElapsed = Math.max(1, (Date.now() - VAULT_LAUNCH_MS) / 86_400_000);
+        return (Math.pow(predictSummary.plp_share_price, 365.25 / daysElapsed) - 1) * 100;
+      })()
+    : null;
+
   return (
     <>
     {showDepthAnim && (
@@ -218,8 +227,13 @@ export function ShieldVault({ address }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">ShieldVault</h2>
         <div className="flex items-center gap-2">
-          {totalReturn && (
-            <span className="text-xs font-mono text-emerald-400">+{totalReturn}% since inception</span>
+          {estApy !== null && (
+            <span className="text-xs font-mono font-semibold text-emerald-400">
+              ~{estApy.toFixed(1)}% est. APY
+            </span>
+          )}
+          {totalReturn && !estApy && (
+            <span className="text-xs font-mono text-emerald-400">+{totalReturn}% since launch</span>
           )}
           <span className="text-xs bg-emerald-700 text-white px-2 py-0.5 rounded-full">
             LP Yield
@@ -231,6 +245,16 @@ export function ShieldVault({ address }: Props) {
         Deposit dUSDC → vault becomes a DeepBook Predict LP → earns premiums from options traders.
         Receive a VaultShare NFT. Withdraw anytime (subject to vault liquidity).
       </p>
+
+      {/* LP risk disclosure */}
+      <div className="rounded-xl px-4 py-3 text-xs space-y-1.5" style={{ background: "rgba(234,179,8,.05)", border: "1px solid rgba(234,179,8,.18)" }}>
+        <p className="font-semibold" style={{ color: "rgba(253,224,71,.85)" }}>LP Risk Disclosure</p>
+        <p style={{ color: "rgba(200,180,120,.7)" }}>
+          Your deposit backs the insurance pool — you earn option premiums when BTC stays above strike prices.
+          If BTC crashes and policies pay out, your vault position absorbs the loss proportionally.
+          This is not a money-market deposit; yield is real but principal is at risk.
+        </p>
+      </div>
 
       {/* Stats */}
       {loading ? (
@@ -254,12 +278,12 @@ export function ShieldVault({ address }: Props) {
           <StatCard
             label="PLP Share Price"
             value={predictSummary ? predictSummary.plp_share_price.toFixed(6) : "—"}
-            sub="Grows with premiums"
+            sub={totalReturn ? `+${totalReturn}% since launch` : "Grows with premiums"}
           />
           <StatCard
-            label="Vault Utilization"
-            value={predictSummary ? `${(predictSummary.utilization * 100).toFixed(2)}%` : "—"}
-            sub="Of vault at risk"
+            label="Est. APY"
+            value={estApy !== null ? `~${estApy.toFixed(1)}%` : predictSummary ? "Calculating…" : "—"}
+            sub="Annualised from share price"
           />
         </div>
       )}
@@ -302,12 +326,22 @@ export function ShieldVault({ address }: Props) {
         </button>
 
         {dusdcBalance === 0n && !loading && (
-          <div className="rounded-lg px-3 py-2.5 text-xs space-y-1" style={{ background: "rgba(42,212,255,.06)", border: "1px solid rgba(42,212,255,.12)" }}>
-            <p className="font-semibold" style={{ color: "#2ad4ff" }}>Need dUSDC?</p>
-            <p style={{ color: "rgba(160,200,230,.6)" }}>
-              Mint testnet dUSDC via the DeepBook Predict faucet on Sui testnet.
-              Get SUI gas from the Sui Discord <span style={{ color: "rgba(42,212,255,.8)" }}>#testnet-faucet</span> first.
-            </p>
+          <div className="rounded-lg px-4 py-3 text-xs space-y-2.5" style={{ background: "rgba(42,212,255,.07)", border: "1px solid rgba(42,212,255,.18)" }}>
+            <p className="font-bold text-sm" style={{ color: "#2ad4ff" }}>Get testnet dUSDC</p>
+            <div className="space-y-1.5" style={{ color: "rgba(160,210,240,.75)" }}>
+              <div className="flex gap-2">
+                <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>1.</span>
+                <span>Get SUI gas — Sui Discord <a href="https://discord.gg/sui" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2ad4ff" }}>#testnet-faucet</a></span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>2.</span>
+                <span>Get dUSDC — open <strong style={{ color: "rgba(200,235,255,.85)" }}>DeepBook Predict</strong> testnet app → Faucet tab → mint dUSDC</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>3.</span>
+                <span>Return here, enter amount above and click <strong style={{ color: "rgba(200,235,255,.85)" }}>Deposit &amp; Earn</strong></span>
+              </div>
+            </div>
           </div>
         )}
         {error && <p className="text-xs text-red-400">{error}</p>}

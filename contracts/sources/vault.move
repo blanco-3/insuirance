@@ -192,3 +192,49 @@ public fun total_shares(vault: &ShieldVault): u64 { vault.total_shares }
 public fun total_plp(vault: &ShieldVault): u64 { vault.plp_balance.value() }
 public fun shares(share: &VaultShare): u64 { share.shares }
 public fun share_owner(share: &VaultShare): address { share.owner }
+
+// ── Test-only helpers ─────────────────────────────────────────────────────────
+
+#[test_only]
+/// Create an empty ShieldVault for unit testing (bypasses create_vault entry).
+public fun new_vault_for_testing(ctx: &mut TxContext): ShieldVault {
+    ShieldVault {
+        id: object::new(ctx),
+        plp_balance: balance::zero<PLP>(),
+        total_shares: 0,
+    }
+}
+
+#[test_only]
+/// Inject synthetic PLP balance into the vault (simulates predict.supply returns).
+public fun add_plp_for_testing(vault: &mut ShieldVault, amount: u64) {
+    let b = balance::create_for_testing<PLP>(amount);
+    vault.plp_balance.join(b);
+}
+
+#[test_only]
+/// Directly set total_shares (simulates share minting without predict call).
+public fun set_shares_for_testing(vault: &mut ShieldVault, total: u64) {
+    vault.total_shares = total;
+}
+
+#[test_only]
+/// Create a VaultShare for testing.
+public fun new_share_for_testing(owner: address, share_count: u64, ctx: &mut TxContext): VaultShare {
+    VaultShare { id: object::new(ctx), owner, shares: share_count }
+}
+
+#[test_only]
+/// Destroy a vault and discard PLP balance (test cleanup only).
+public fun destroy_vault_for_testing(vault: ShieldVault) {
+    let ShieldVault { id, plp_balance, .. } = vault;
+    object::delete(id);
+    balance::destroy_for_testing(plp_balance);
+}
+
+#[test_only]
+/// Destroy a VaultShare (test cleanup only).
+public fun destroy_share_for_testing(share: VaultShare) {
+    let VaultShare { id, .. } = share;
+    object::delete(id);
+}

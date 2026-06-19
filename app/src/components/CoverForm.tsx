@@ -427,12 +427,22 @@ export function CoverForm({ address, suggestedCover }: Props) {
               <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
             </div>
             {walletBalance === 0n && (
-              <div className="rounded-lg px-3 py-2.5 text-xs space-y-1" style={{ background: "rgba(42,212,255,.06)", border: "1px solid rgba(42,212,255,.12)" }}>
-                <p className="font-semibold" style={{ color: "#2ad4ff" }}>Need dUSDC?</p>
-                <p style={{ color: "rgba(160,200,230,.6)" }}>
-                  Mint testnet dUSDC via the DeepBook Predict faucet on Sui testnet.
-                  Use the Sui Discord <span style={{ color: "rgba(42,212,255,.8)" }}>#testnet-faucet</span> to get SUI gas first.
-                </p>
+              <div className="rounded-lg px-4 py-3 text-xs space-y-2.5" style={{ background: "rgba(42,212,255,.07)", border: "1px solid rgba(42,212,255,.18)" }}>
+                <p className="font-bold text-sm" style={{ color: "#2ad4ff" }}>Get testnet dUSDC</p>
+                <div className="space-y-1.5" style={{ color: "rgba(160,210,240,.75)" }}>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>1.</span>
+                    <span>Get SUI gas — Sui Discord <a href="https://discord.gg/sui" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2ad4ff" }}>#testnet-faucet</a></span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>2.</span>
+                    <span>Get dUSDC — open <strong style={{ color: "rgba(200,235,255,.85)" }}>DeepBook Predict</strong> testnet app → Faucet tab → mint dUSDC</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>3.</span>
+                    <span>Return here and deposit dUSDC into your manager to buy cover</span>
+                  </div>
+                </div>
               </div>
             )}
             {error    && <p className="text-sm text-red-400">{error}</p>}

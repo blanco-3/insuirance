@@ -12,6 +12,7 @@ use deepbook_predict::oracle::OracleSVI;
 use deepbook_predict::market_key;
 use sui::clock::Clock;
 use sui::event;
+use sui::transfer;
 
 // ── Status constants ────────────────────────────────────────────────────────
 const STATUS_ACTIVE: u8 = 0;
@@ -118,9 +119,10 @@ public fun buy_cover<Quote>(
 
 /// Claim payout after oracle settles.
 ///
-/// If settlement_price <= strike → payout (redeem_permissionless).
+/// If settlement_price <= strike → redeem binary option → withdraw payout coin →
+///   transfer directly to policy.owner. No frontend interaction needed after this call.
 /// If settlement_price > strike  → no payout, Policy marked expired.
-/// Either way, Policy becomes non-claimable again (idempotent).
+/// Either way, Policy becomes non-claimable (EAlreadyClaimed on retry).
 public fun claim<Quote>(
     policy: &mut Policy,
     predict: &mut Predict,
@@ -139,7 +141,13 @@ public fun claim<Quote>(
 
     if (payout) {
         let key = market_key::down(policy.oracle_id, policy.expiry, policy.strike);
+        // redeem_permissionless settles the binary option into manager's internal balance.
+        // For a binary DOWN settled ITM, payout = quantity (1:1, verified in predict.move:762-765).
         predict.redeem_permissionless<Quote>(manager, oracle, key, policy.quantity, clock, ctx);
+        // Withdraw the exact payout amount from manager and transfer directly to policy owner.
+        // This makes claim self-contained — payout lands in owner's wallet without frontend PTB.
+        let payout_coin = manager.withdraw<Quote>(policy.quantity, ctx);
+        transfer::public_transfer(payout_coin, policy.owner);
         policy.status = STATUS_CLAIMED;
     } else {
         policy.status = STATUS_EXPIRED_NOPAY;

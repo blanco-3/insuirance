@@ -226,6 +226,16 @@ export function PolicyList({ address }: Props) {
               </span>
             </div>
 
+            {/* NFT Card Image */}
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+              <img
+                src={`/api/nft?asset=${oracleInfo?.underlying_asset ?? "BTC"}&strike=${fields.strike}&expiry=${fields.expiry}&qty=${fields.quantity}&status=${fields.status}`}
+                alt="Policy NFT"
+                className="w-full"
+                style={{ display: "block", maxHeight: 200, objectFit: "cover", objectPosition: "top" }}
+              />
+            </div>
+
             {/* Stats */}
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>

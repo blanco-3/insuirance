@@ -437,22 +437,13 @@ export function CoverForm({ address, suggestedCover }: Props) {
               <span className="flex items-center pr-3 text-sm text-gray-400">DUSDC</span>
             </div>
             {walletBalance === 0n && (
-              <div className="rounded-lg px-4 py-3 text-xs space-y-2.5" style={{ background: "rgba(42,212,255,.07)", border: "1px solid rgba(42,212,255,.18)" }}>
-                <p className="font-bold text-sm" style={{ color: "#2ad4ff" }}>Get testnet dUSDC</p>
-                <div className="space-y-1.5" style={{ color: "rgba(160,210,240,.75)" }}>
-                  <div className="flex gap-2">
-                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>1.</span>
-                    <span>Get SUI gas — Sui Discord <a href="https://discord.gg/sui" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2ad4ff" }}>#testnet-faucet</a></span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>2.</span>
-                    <span>Get dUSDC — open <strong style={{ color: "rgba(200,235,255,.85)" }}>DeepBook Predict</strong> testnet app → Faucet tab → mint dUSDC</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="shrink-0 font-bold" style={{ color: "rgba(42,212,255,.7)" }}>3.</span>
-                    <span>Return here and deposit dUSDC into your manager to buy cover</span>
-                  </div>
-                </div>
+              <div className="rounded-lg px-4 py-3 text-xs space-y-2" style={{ background: "rgba(42,212,255,.07)", border: "1px solid rgba(42,212,255,.18)" }}>
+                <p className="font-bold text-sm" style={{ color: "#2ad4ff" }}>dUSDC needed</p>
+                <p style={{ color: "rgba(160,210,240,.7)" }}>
+                  dUSDC is a testnet token issued by the DeepBook team.
+                  Request it via the <a href="https://discord.gg/sui" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#2ad4ff" }}>Sui Discord</a> or from a DeepBook Predict team member.
+                  SUI gas is available from <span className="font-semibold" style={{ color: "rgba(200,235,255,.8)" }}>#testnet-faucet</span>.
+                </p>
               </div>
             )}
             {error    && <p className="text-sm text-red-400">{error}</p>}

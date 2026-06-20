@@ -232,7 +232,7 @@ export function PolicyList({ address }: Props) {
                 src={`/api/nft?asset=${oracleInfo?.underlying_asset ?? "BTC"}&strike=${fields.strike}&expiry=${fields.expiry}&qty=${fields.quantity}&status=${fields.status}`}
                 alt="Policy NFT"
                 className="w-full"
-                style={{ display: "block", maxHeight: 200, objectFit: "cover", objectPosition: "top" }}
+                style={{ display: "block", width: "100%", height: "auto" }}
               />
             </div>
 

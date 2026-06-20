@@ -54,9 +54,11 @@ const COLOR_MAP: Record<string, { active: string }> = {
 interface Props {
   address: string;
   suggestedCover?: string;
+  /** "BTC" | "SUI" — filters oracle list to the selected asset */
+  assetFilter?: string;
 }
 
-export function CoverForm({ address, suggestedCover }: Props) {
+export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
   const { mutateAsync: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const client = useSuiClient();
 
@@ -176,7 +178,9 @@ export function CoverForm({ address, suggestedCover }: Props) {
     async function fetchOracles() {
       try {
         const list = await getActiveOracles();
-        const fresh = dedup(list);
+        const fresh = dedup(list).filter((o) =>
+          !assetFilter || o.underlying_asset.toUpperCase().includes(assetFilter.toUpperCase())
+        );
         setOracles(fresh);
         // If selected oracle has expired, is wrong asset, or isn't in the new list → auto-advance
         setOracleOption((prev) => {
@@ -191,7 +195,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
     // Re-fetch every 60 s so expired oracles drop off and new ones appear
     const t = setInterval(fetchOracles, 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [assetFilter]);
 
   // Fetch DeepBook vault utilization — gate new cover purchases above 90%
   useEffect(() => {

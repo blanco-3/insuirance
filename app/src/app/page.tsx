@@ -330,7 +330,7 @@ export default function Home() {
             Twitter
           </a>
           <a
-            href="https://github.com"
+            href="https://github.com/blanco-3/insuirance"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:opacity-80 transition-opacity"

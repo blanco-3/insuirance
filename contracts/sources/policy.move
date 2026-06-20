@@ -21,6 +21,7 @@ const STATUS_EXPIRED_NOPAY: u8 = 2;
 
 // ── Error codes ─────────────────────────────────────────────────────────────
 const EPremiumTooHigh: u64 = 0;
+// code 1 intentionally reserved (previously ENotOwner — removed; access is enforced by object ownership)
 const ENotSettled: u64 = 2;
 const EAlreadyClaimed: u64 = 3;
 const EWrongOracle: u64 = 4;
@@ -175,13 +176,18 @@ public fun is_active(policy: &Policy): bool { policy.status == STATUS_ACTIVE }
 public fun is_claimed(policy: &Policy): bool { policy.status == STATUS_CLAIMED }
 
 /// Compute strike price from current spot and desired drop percentage.
-/// Rounds DOWN to nearest tick. Call off-chain to build PTB args.
+/// Rounds DOWN to nearest tick. Called off-chain (via devInspect) to build PTB args;
+/// the frontend mirrors this logic in predict-api.ts::computeStrike with BigInt.
 ///
-/// drop_bps: basis points, e.g. 500 = 5%
+/// drop_bps : basis points, e.g. 500 = 5%
 /// tick_size: e.g. 1_000_000_000 ($1,000 in oracle units)
+///
+/// Uses u128 intermediate to prevent overflow at high spot prices
+/// (u64 saturates at ~$1.84M in oracle units; u128 is safe to $3.4 × 10^13).
 public fun compute_strike(spot: u64, drop_bps: u64, tick_size: u64): u64 {
-    let raw = spot * (10_000 - drop_bps) / 10_000;
-    (raw / tick_size) * tick_size
+    let raw128 = (spot as u128) * ((10_000 - drop_bps) as u128) / 10_000u128;
+    let tick128 = tick_size as u128;
+    ((raw128 / tick128) * tick128) as u64
 }
 
 // ── Test-only helpers ─────────────────────────────────────────────────────────

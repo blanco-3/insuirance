@@ -691,9 +691,9 @@ function countdown(ms: number): { label: string; urgent: boolean } {
   const d = Math.floor(diff / 86_400_000);
   const h = Math.floor((diff % 86_400_000) / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (d > 0) return { label: `${d}d ${h}h`, urgent: d < 1 };
-  if (h > 0) return { label: `${h}h ${m}m`, urgent: h < 6 };
-  return { label: `${m}m`, urgent: true };
+  if (d > 0) return { label: `${d}d ${h}h left`, urgent: d < 1 };
+  if (h > 0) return { label: `${h}h ${m}m left`, urgent: h < 6 };
+  return { label: `${m}m left`, urgent: true };
 }
 
 // Approximate relative premium using √T (no SVI needed per oracle — just for sparkline shape)
@@ -862,7 +862,7 @@ function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
                   <p className={`text-xl font-bold font-mono leading-tight ${isSel ? "text-white" : "text-gray-300"}`}>
                     {day}
                   </p>
-                  <p className="text-xs text-gray-600 leading-none">{time}</p>
+                  <p className="text-xs text-gray-600 leading-none">{time} <span style={{ color: "rgba(100,130,170,0.5)" }}>UTC</span></p>
                 </div>
 
                 {/* Countdown pill */}

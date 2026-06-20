@@ -13,21 +13,40 @@
 ///        → VaultShare burned, proportional PLP redeemed
 ///        → predict.withdraw(plp_coin) → Coin<DUSDC> transferred to user
 ///
+///   3. buy_cover_entry<DUSDC>(vault, predict, manager, oracle, ..., ctx)
+///        → On-chain cover cap: single policy quantity ≤ COVER_CAP_BPS of vault PLP
+///        → policy::buy_cover → Policy NFT transferred to buyer
+///
 /// VaultShare.shares / vault.total_shares = user's fraction of PLP pool.
 /// Share price appreciates as the PLP pool earns premiums.
 module insuirance::vault;
 
 use deepbook_predict::plp::PLP;
 use deepbook_predict::predict::{Self, Predict};
+use deepbook_predict::predict_manager::PredictManager;
+use deepbook_predict::oracle::OracleSVI;
+use insuirance::policy;
 use sui::balance::{Self, Balance};
 use sui::clock::Clock;
 use sui::coin::{Self, Coin};
 use sui::event;
+use sui::transfer;
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
 const EZeroAmount: u64 = 0;
 const EZeroShares: u64 = 1;
+/// Single cover purchase exceeds the on-chain vault capacity cap.
+/// Protects LP depositors from concentrated drain by a single buyer.
+/// Cap is COVER_CAP_BPS of vault's total PLP value (default 90%).
+const ECoverExceedsCap: u64 = 2;
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/// Max single-policy cover as a fraction of vault PLP (90% = 9000 bps).
+/// Prevents any single purchase from draining more than 90% of the pool.
+/// v2 upgrade: replace with per-tx + cumulative open-interest tracking.
+const COVER_CAP_BPS: u128 = 9_000;
 
 // ── Objects ──────────────────────────────────────────────────────────────────
 
@@ -186,12 +205,54 @@ public entry fun withdraw_entry<Quote>(
     transfer::public_transfer(coin, ctx.sender());
 }
 
+/// Purchase a parametric cover policy with on-chain vault capacity guard.
+///
+/// On-chain cap (COVER_CAP_BPS = 90%):
+///   quantity must not exceed 90% of vault's total PLP value.
+///   This prevents a single buyer from committing more than 90% of LP
+///   principal to one policy, protecting depositors from concentrated drain.
+///
+///   Note: this is a per-transaction size cap. Cumulative open-interest
+///   tracking (decrement on claim) is the v2 upgrade path.
+///
+/// After the cap check, delegates to policy::buy_cover which calls
+/// predict.mint, enforces the slippage guard, and mints the Policy NFT.
+public entry fun buy_cover_entry<Quote>(
+    vault: &ShieldVault,
+    predict: &mut Predict,
+    manager: &mut PredictManager,
+    oracle: &OracleSVI,
+    strike: u64,
+    expiry: u64,
+    quantity: u64,
+    max_premium: u64,
+    asset: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    // ── On-chain cover cap ───────────────────────────────────────────────────
+    // Skip cap when vault is empty (bootstrap phase — ShieldVault not yet funded).
+    // Once the vault has liquidity, cap applies.
+    let vault_plp = vault.plp_balance.value();
+    if (vault_plp > 0) {
+        let max_qty = (vault_plp as u128) * COVER_CAP_BPS / 10_000u128;
+        assert!((quantity as u128) <= max_qty, ECoverExceedsCap);
+    };
+
+    // ── Policy mint ──────────────────────────────────────────────────────────
+    let policy_nft = policy::buy_cover<Quote>(
+        predict, manager, oracle, strike, expiry, quantity, max_premium, asset, clock, ctx,
+    );
+    transfer::public_transfer(policy_nft, ctx.sender());
+}
+
 // ── View helpers ─────────────────────────────────────────────────────────────
 
 public fun total_shares(vault: &ShieldVault): u64 { vault.total_shares }
 public fun total_plp(vault: &ShieldVault): u64 { vault.plp_balance.value() }
 public fun shares(share: &VaultShare): u64 { share.shares }
 public fun share_owner(share: &VaultShare): address { share.owner }
+public fun cover_cap_bps(): u128 { COVER_CAP_BPS }
 
 // ── Test-only helpers ─────────────────────────────────────────────────────────
 

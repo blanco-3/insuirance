@@ -27,6 +27,7 @@ import { DepthAnimation } from "@/components/DepthAnimation";
 import { parseError } from "@/lib/parseError";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
+const SHIELD_VAULT_ID    = process.env.NEXT_PUBLIC_SHIELD_VAULT_ID ?? "";
 const CLOCK_ID = "0x6";
 const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 
@@ -354,10 +355,14 @@ export function CoverForm({ address, suggestedCover }: Props) {
       for (const trigger of activeTriggers) {
         const strike     = computeStrike(spotRaw, trigger.bps);
         const maxPremium = getMaxPremium(trigger.bps);
-        const policy = tx.moveCall({
-          target: `${INSUIRANCE_PACKAGE}::policy::buy_cover`,
+        // vault::buy_cover_entry: on-chain cover cap (90% of vault PLP) +
+        // policy::buy_cover + internal transfer to sender.
+        // No transferObjects needed — entry function handles it.
+        tx.moveCall({
+          target: `${INSUIRANCE_PACKAGE}::vault::buy_cover_entry`,
           typeArguments: [DUSDC_TYPE],
           arguments: [
+            tx.object(SHIELD_VAULT_ID),
             tx.object(PREDICT_ID),
             tx.object(managerId),
             tx.object(oracleOption.id),
@@ -369,9 +374,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
             tx.object(CLOCK_ID),
           ],
         });
-        policies.push(policy);
       }
-      tx.transferObjects(policies, address);
 
       const result = await signAndExecute({ transaction: tx });
       setTxDigest(result.digest);

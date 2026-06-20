@@ -52,6 +52,8 @@ export function parseError(e: unknown): string {
         return "Deposit amount must be greater than zero.";
       if (code === 1)
         return "Deposit too small — share allocation rounds to zero. Try a larger amount.";
+      if (code === 2)
+        return "Cover amount exceeds vault capacity (90% limit). Try a smaller position or wait for vault deposits.";
     }
 
     // Text-based fallbacks for common abort names

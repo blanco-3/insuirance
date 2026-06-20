@@ -44,7 +44,7 @@ export function HedgeCalculator({ onHedge }: Props) {
   ];
 
   const recommendedCover = portfolioUsd > 0
-    ? Math.ceil(portfolioUsd * 0.10 / 10) * 10 // 10% of portfolio, rounded up to nearest 10
+    ? Math.ceil(portfolioUsd * 0.10) // 10% of portfolio, rounded up to nearest 1
     : 0;
 
   if (!open) {

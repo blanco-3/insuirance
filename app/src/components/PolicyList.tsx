@@ -242,7 +242,7 @@ export function PolicyList({ address }: Props) {
               </div>
               {currentSpot !== null && isActive && !isSettled && (
                 <div>
-                  <p className="text-gray-400 text-xs">{oracleInfo?.underlying_asset ?? "Asset"} Live</p>
+                  <p className="text-gray-400 text-xs">BTC Live</p>
                   <p className={`font-mono font-semibold ${inTheMoneyLive ? "text-green-400" : "text-white"}`}>
                     {formatUsd(currentSpot)}
                   </p>

@@ -174,22 +174,10 @@ export function computeFairPremium(
 
 // ─── Strike computation (mirrors Move: compute_strike) ──────────────────
 
-/**
- * Compute tick-aligned strike for a given spot price and drop.
- * Uses the oracle's own tick_size / min_strike when provided (supports SUI, BTC, etc.)
- * Falls back to global BTC defaults.
- */
-export function computeStrike(
-  spotRaw: bigint,
-  dropBps: bigint,
-  oracleTickSize?: number,
-  oracleMinStrike?: number,
-): bigint {
-  const tick = oracleTickSize ? BigInt(oracleTickSize) : TICK_SIZE;
-  const minS = oracleMinStrike ? BigInt(oracleMinStrike) : MIN_STRIKE;
+export function computeStrike(spotRaw: bigint, dropBps: bigint): bigint {
   const raw = (spotRaw * (10_000n - dropBps)) / 10_000n;
-  const strike = (raw / tick) * tick;
-  return strike < minS ? minS : strike;
+  const strike = (raw / TICK_SIZE) * TICK_SIZE;
+  return strike < MIN_STRIKE ? MIN_STRIKE : strike;
 }
 
 /** Display: oracle units → USD string */

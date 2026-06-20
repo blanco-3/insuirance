@@ -54,11 +54,9 @@ const COLOR_MAP: Record<string, { active: string }> = {
 interface Props {
   address: string;
   suggestedCover?: string;
-  /** "BTC" | "SUI" — filters oracle list to the selected asset */
-  assetFilter?: string;
 }
 
-export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
+export function CoverForm({ address, suggestedCover }: Props) {
   const { mutateAsync: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const client = useSuiClient();
 
@@ -178,11 +176,9 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
     async function fetchOracles() {
       try {
         const list = await getActiveOracles();
-        const fresh = dedup(list).filter((o) =>
-          !assetFilter || o.underlying_asset.toUpperCase().includes(assetFilter.toUpperCase())
-        );
+        const fresh = dedup(list);
         setOracles(fresh);
-        // If selected oracle has expired, is wrong asset, or isn't in the new list → auto-advance
+        // If selected oracle has expired or isn't in the new list, auto-advance
         setOracleOption((prev) => {
           if (!prev) return fresh[0] ?? null;
           const still = fresh.find((o) => o.id === prev.id);
@@ -195,7 +191,7 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
     // Re-fetch every 60 s so expired oracles drop off and new ones appear
     const t = setInterval(fetchOracles, 60_000);
     return () => clearInterval(t);
-  }, [assetFilter]);
+  }, []);
 
   // Fetch DeepBook vault utilization — gate new cover purchases above 90%
   useEffect(() => {
@@ -259,17 +255,9 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
 
   const activeTriggers = TRIGGERS.filter((t) => selectedTriggers.has(t.bps.toString()));
 
-  function computeStrikeForOracle(bps: bigint): bigint {
-    return computeStrike(
-      spotRaw, bps,
-      oracleOption?.tick_size,
-      oracleOption?.min_strike,
-    );
-  }
-
   function getMaxPremium(bps: bigint): bigint {
     if (sviParams && forwardRaw > 0n && oracleOption) {
-      const strike = computeStrikeForOracle(bps);
+      const strike = computeStrike(spotRaw, bps);
       const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
       if (fair > 0n) return (fair * 115n) / 100n;
     }
@@ -365,7 +353,7 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
       const assetBytes = Array.from(new TextEncoder().encode(oracleOption.underlying_asset));
 
       for (const trigger of activeTriggers) {
-        const strike     = computeStrikeForOracle(trigger.bps);
+        const strike     = computeStrike(spotRaw, trigger.bps);
         const maxPremium = getMaxPremium(trigger.bps);
         // vault::buy_cover_entry: on-chain cover cap (90% of vault PLP) +
         // policy::buy_cover + internal transfer to sender.
@@ -555,7 +543,7 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
               <div className="flex gap-2">
                 {TRIGGERS.map((t) => {
                   const isOn   = selectedTriggers.has(t.bps.toString());
-                  const strike = spotRaw > 0n ? computeStrikeForOracle(t.bps) : null;
+                  const strike = spotRaw > 0n ? computeStrike(spotRaw, t.bps) : null;
                   return (
                     <button
                       key={t.bps.toString()}
@@ -614,7 +602,7 @@ export function CoverForm({ address, suggestedCover, assetFilter }: Props) {
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Payout Scenarios</p>
                 <div className="space-y-2">
                   {activeTriggers.map((t) => {
-                    const strike = computeStrikeForOracle(t.bps);
+                    const strike = computeStrike(spotRaw, t.bps);
                     return (
                       <div key={t.bps.toString()} className="flex items-center gap-3 text-sm">
                         <span className="text-gray-500 w-14 shrink-0">≥{t.label} drop</span>

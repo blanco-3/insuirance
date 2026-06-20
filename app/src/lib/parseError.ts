@@ -66,6 +66,12 @@ export function parseError(e: unknown): string {
     if (/EPremiumTooHigh/i.test(msg))
       return "Cover cost exceeded slippage limit — price moved. Try again or increase max premium.";
 
+    // DeepBook Predict internal errors — strike outside oracle grid
+    if (/quote_spread_from_fair_price|assert_mintable_ask|mintable.*ask|outside.*grid|grid.*outside/i.test(msg))
+      return "Strike price is outside this oracle's supported range. Try selecting a different expiry or a smaller drop percentage.";
+    if (/assert_mintable/i.test(msg))
+      return "This strike price is not supported by the oracle. Try a different expiry.";
+
     return "Contract rejected the transaction. Double-check your inputs and try again.";
   }
 

@@ -1,6 +1,17 @@
 #[test_only]
 module insuirance::vault_tests;
 
+// Unit tests cover share issuance math, proportional withdrawal, and APY-relevant
+// PLP price appreciation scenarios in isolation.
+//
+// Integration tests for deposit_entry / withdraw_entry (which call predict.supply /
+// predict.withdraw on a live DeepBook Predict shared object) are deferred — the
+// DeepBook Predict package does not expose #[test_only] constructors for Predict or
+// PLP coins, so integration coverage requires a published devnet/testnet scenario
+// rather than a local sui move test run.
+//
+// All share-math invariants tested here are identical to what runs on-chain.
+
 use insuirance::vault;
 use sui::test_scenario;
 

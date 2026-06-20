@@ -140,6 +140,17 @@ User Wallet (LP)
 > **LP risk**: ShieldVault depositors are the payout source. When BTC crashes and
 > covered policies settle ITM, `predict.redeem_permissionless` draws from the PLP pool
 > (`dispense_payout`), reducing LP principal. High utilization → potential withdrawal delay.
+>
+> **Utilization cap**: The frontend blocks new cover purchases when DeepBook PLP pool
+> utilization ≥ 90%, protecting depositors from pool exhaustion. The Move-level equivalent
+> would assert `vault_balance / total_minted ≤ threshold` inside `buy_cover()` — the
+> threshold logic is identical; the on-chain version is the natural v2 upgrade.
+>
+> **Anti-selection**: SVI pricing partially mitigates anti-selection by dynamically widening
+> the implied vol smile as skew increases — buyers chasing imminent crashes pay
+> proportionally higher premiums. The `max_premium` slippage guard in `buy_cover()` also
+> prevents front-running via stale quotes (the PTB aborts if on-chain cost exceeds
+> the user's quoted max).
 
 ### DeepBook Predict Dependency Map
 

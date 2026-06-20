@@ -133,10 +133,10 @@ export function HedgeCalculator({ onHedge }: Props) {
               </div>
               {onHedge && (
                 <button
-                  onClick={() => { onHedge(String(Math.min(recommendedCover, 30))); setOpen(false); }}
+                  onClick={() => { onHedge(String(recommendedCover)); setOpen(false); }}
                   className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm py-2 transition-colors"
                 >
-                  Protect Now → {Math.min(recommendedCover, 30)} DUSDC
+                  Protect Now → {recommendedCover} DUSDC
                 </button>
               )}
             </div>

@@ -27,8 +27,9 @@ export function parseError(e: unknown): string {
   // Move contract aborts — try numeric code first, then text patterns
   if (/MoveAbort/i.test(msg)) {
     // Detect module context from the error message
-    const inPolicy = /::policy/i.test(msg);
-    const inVault  = /::vault/i.test(msg);
+    const inPolicy       = /::policy/i.test(msg);
+    const inVault        = /::vault/i.test(msg);
+    const inPricingConfig = /pricing_config/i.test(msg);
 
     // Extract numeric abort code — last number before closing paren, e.g. "MoveAbort(..., 3)"
     const codeMatch = msg.match(/,\s*(\d+)\s*\)/) ?? msg.match(/abort\s+code[:\s]+(\d+)/i);
@@ -67,7 +68,8 @@ export function parseError(e: unknown): string {
       return "Cover cost exceeded slippage limit — price moved. Try again or increase max premium.";
 
     // DeepBook Predict internal errors — strike outside oracle grid
-    if (/quote_spread_from_fair_price|assert_mintable_ask|mintable.*ask|outside.*grid|grid.*outside/i.test(msg))
+    if (inPricingConfig ||
+        /quote_spread_from_fair_price|assert_mintable_ask|mintable.*ask|outside.*grid|grid.*outside/i.test(msg))
       return "Strike price is outside this oracle's supported range. Try selecting a different expiry or a smaller drop percentage.";
     if (/assert_mintable/i.test(msg))
       return "This strike price is not supported by the oracle. Try a different expiry.";

@@ -32,16 +32,16 @@ const CLOCK_ID = "0x6";
 const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 
 const TRIGGERS = [
-  { label: "5%", bps: 500n, desc: "Mild dip" },
-  { label: "10%", bps: 1000n, desc: "Correction" },
-  { label: "20%", bps: 2000n, desc: "Crash" },
+  { label: "0.5%", bps: 50n,  desc: "Mild dip" },
+  { label: "1%",   bps: 100n, desc: "Correction" },
+  { label: "2%",   bps: 200n, desc: "Crash" },
 ];
 
 const STRATEGIES: { label: string; sub: string; bpsSet: bigint[]; color: string }[] = [
-  { label: "Conservative", sub: "5% drop",   bpsSet: [500n],             color: "sky" },
-  { label: "Balanced",     sub: "10% drop",  bpsSet: [1000n],            color: "violet" },
-  { label: "Black Swan",   sub: "20% drop",  bpsSet: [2000n],            color: "rose" },
-  { label: "Full Ladder",  sub: "All levels", bpsSet: [500n, 1000n, 2000n], color: "emerald" },
+  { label: "Conservative", sub: "0.5% drop",  bpsSet: [50n],          color: "sky" },
+  { label: "Balanced",     sub: "1% drop",    bpsSet: [100n],         color: "violet" },
+  { label: "Crash",        sub: "2% drop",    bpsSet: [200n],         color: "rose" },
+  { label: "Full Ladder",  sub: "All levels", bpsSet: [50n, 100n, 200n], color: "emerald" },
 ];
 
 const COLOR_MAP: Record<string, { active: string }> = {
@@ -73,7 +73,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   // Form state
   const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(
-    suggestedCover ? new Set(["500", "1000", "2000"]) : new Set(["1000"])
+    suggestedCover ? new Set(["50", "100", "200"]) : new Set(["100"])
   );
   const [activeStrategy, setActiveStrategy] = useState<string | null>(
     suggestedCover ? "Full Ladder" : "Balanced"
@@ -156,7 +156,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
     setCoverAmount(suggestedCover);
     setDepositAmount(suggestedCover);
     setActiveStrategy("Full Ladder");
-    setSelectedTriggers(new Set(["500", "1000", "2000"]));
+    setSelectedTriggers(new Set(["50", "100", "200"]));
     setView("buy");
   }, [suggestedCover]);
 

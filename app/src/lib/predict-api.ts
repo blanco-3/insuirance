@@ -174,10 +174,12 @@ export function computeFairPremium(
 
 // ─── Strike computation (mirrors Move: compute_strike) ──────────────────
 
-export function computeStrike(spotRaw: bigint, dropBps: bigint): bigint {
-  const raw = (spotRaw * (10_000n - dropBps)) / 10_000n;
-  const strike = (raw / TICK_SIZE) * TICK_SIZE;
-  return strike < MIN_STRIKE ? MIN_STRIKE : strike;
+export function computeStrike(spotRaw: bigint, dropBps: bigint, tickSize?: bigint, minStrike?: bigint): bigint {
+  const tick = tickSize ?? TICK_SIZE;
+  const min  = minStrike ?? MIN_STRIKE;
+  const raw  = (spotRaw * (10_000n - dropBps)) / 10_000n;
+  const strike = (raw / tick) * tick;
+  return strike < min ? min : strike;
 }
 
 /** Display: oracle units → USD string */

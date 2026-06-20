@@ -57,6 +57,11 @@ export function parseError(e: unknown): string {
         return "Cover amount exceeds vault capacity (90% limit). Try a smaller position or wait for vault deposits.";
     }
 
+    // DeepBook Predict pricing_config abort code 1 — strike outside oracle's valid tick range.
+    // Wallet UI shows the full module path; JS error may only contain the abort code.
+    if (!inPolicy && !inVault && code === 1)
+      return "Strike price is outside this oracle's supported range. The oracle's grid is narrow on testnet — try a different expiry.";
+
     // Text-based fallbacks for common abort names
     if (/EInsufficientLiquidity/i.test(msg))
       return "Cover amount exceeds available vault liquidity. Try a smaller amount.";

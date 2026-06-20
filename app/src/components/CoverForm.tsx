@@ -255,9 +255,12 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   const activeTriggers = TRIGGERS.filter((t) => selectedTriggers.has(t.bps.toString()));
 
+  const oracleTick = oracleOption ? BigInt(oracleOption.tick_size) : undefined;
+  const oracleMin  = oracleOption ? BigInt(oracleOption.min_strike) : undefined;
+
   function getMaxPremium(bps: bigint): bigint {
     if (sviParams && forwardRaw > 0n && oracleOption) {
-      const strike = computeStrike(spotRaw, bps);
+      const strike = computeStrike(spotRaw, bps, oracleTick, oracleMin);
       const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
       if (fair > 0n) return (fair * 115n) / 100n;
     }
@@ -353,7 +356,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
       const assetBytes = Array.from(new TextEncoder().encode(oracleOption.underlying_asset));
 
       for (const trigger of activeTriggers) {
-        const strike     = computeStrike(spotRaw, trigger.bps);
+        const strike     = computeStrike(spotRaw, trigger.bps, oracleTick, oracleMin);
         const maxPremium = getMaxPremium(trigger.bps);
         // vault::buy_cover_entry: on-chain cover cap (90% of vault PLP) +
         // policy::buy_cover + internal transfer to sender.
@@ -543,7 +546,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
               <div className="flex gap-2">
                 {TRIGGERS.map((t) => {
                   const isOn   = selectedTriggers.has(t.bps.toString());
-                  const strike = spotRaw > 0n ? computeStrike(spotRaw, t.bps) : null;
+                  const strike = spotRaw > 0n ? computeStrike(spotRaw, t.bps, oracleTick, oracleMin) : null;
                   return (
                     <button
                       key={t.bps.toString()}
@@ -602,7 +605,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Payout Scenarios</p>
                 <div className="space-y-2">
                   {activeTriggers.map((t) => {
-                    const strike = computeStrike(spotRaw, t.bps);
+                    const strike = computeStrike(spotRaw, t.bps, oracleTick, oracleMin);
                     return (
                       <div key={t.bps.toString()} className="flex items-center gap-3 text-sm">
                         <span className="text-gray-500 w-14 shrink-0">≥{t.label} drop</span>

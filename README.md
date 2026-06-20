@@ -35,10 +35,24 @@ Multi-trigger PTB: Full Ladder mints 3 Policy NFTs (5/10/20%) atomically.
 ## On-chain addresses (Sui Testnet)
 
 ```
-Insuirance package:   0xb2832b01656468017fdcd3fab7793fc3c70edfe2cc6c0dbae526cc1a51564e8a
+Insuirance package:   0x8559a28a9e20a65b0b7deeb66c6e8022b67290b52e1166d0c2cfca44f2bdd481  (v4)
+ShieldVault object:   0xe5790d19867341dbe11e0dea0ea4be22b8d8c06d4cd3b5eda69afa78017e0f7a
 DeepBook Predict pkg: 0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138
 Predict object:       0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a
 ```
+
+---
+
+## Testnet verification — ShieldVault round-trip
+
+The `predict.supply` / `predict.withdraw` integration was verified live on Sui testnet.
+
+| Step | Tx | Explorer |
+|---|---|---|
+| Deposit: 1 dUSDC → 997,909 PLP shares | `DbCHu8b6WT7FzHLTxvWzjNTHjRkNhJFHbqsknBHuCe5Q` | [View on Suiscan](https://suiscan.xyz/testnet/tx/DbCHu8b6WT7FzHLTxvWzjNTHjRkNhJFHbqsknBHuCe5Q) |
+| Withdraw: 997,909 shares → 999,998 dUSDC | `9FB65qhmMi4HerYBd2aTe21k2YpJHHyPbUBqHunEdAuB` | [View on Suiscan](https://suiscan.xyz/testnet/tx/9FB65qhmMi4HerYBd2aTe21k2YpJHHyPbUBqHunEdAuB) |
+
+Both transactions emit `predict::Withdrawn` alongside `vault::Withdrawn`, confirming that `predict.supply` and `predict.withdraw` were called against the live DeepBook Predict shared object.
 
 ---
 
@@ -162,7 +176,8 @@ insuirance::policy                    insuirance::vault
                └── oracle.is_settled / settlement_price
                          │
                    DeepBook Predict (shared objects)
-                   ├── Predict       0xc8736204…
+                   ├── Predict       0xc8736204…  (shared)
+                   ├── ShieldVault   0xe5790d19…  (shared)
                    ├── OracleSVI     (per market)
                    └── PLP Pool      (counterparty + yield source)
 ```

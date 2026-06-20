@@ -26,6 +26,7 @@ const SHIELD_VAULT_ID = process.env.NEXT_PUBLIC_SHIELD_VAULT_ID ?? "";
 export default function Home() {
   const account = useCurrentAccount();
   const [suggestedCover, setSuggestedCover] = useState<string | undefined>();
+  const [assetFilter, setAssetFilter] = useState<string>("BTC");
   const [tab, setTab] = useState<"cover" | "vault">("cover");
   const [view, setView] = useState<"hero" | "app">("hero");
 
@@ -214,7 +215,7 @@ export default function Home() {
                 Surface storms don&apos;t<br />reach the deep.
               </h1>
               <p className="text-sm" style={{ color: "rgba(180,220,255,0.55)" }}>
-                BTC crashes on the surface — your cover lives in the deep with DeepBook.
+                BTC or SUI crashes on the surface — your cover lives in the deep with DeepBook.
               </p>
               <p className="text-xs" style={{ color: "rgba(120,160,200,0.4)" }}>
                 One-click settlement · Fully onchain · Sui Testnet
@@ -245,8 +246,11 @@ export default function Home() {
 
               {tab === "cover" ? (
                 <>
-                  <HedgeCalculator onHedge={setSuggestedCover} />
-                  <CoverForm address={account.address} suggestedCover={suggestedCover} />
+                  <HedgeCalculator
+                    onHedge={(amount, asset) => { setSuggestedCover(amount); setAssetFilter(asset); }}
+                    onAssetChange={setAssetFilter}
+                  />
+                  <CoverForm address={account.address} suggestedCover={suggestedCover} assetFilter={assetFilter} />
                   <PolicyList address={account.address} />
                 </>
               ) : (
@@ -257,7 +261,7 @@ export default function Home() {
             <div className="space-y-6">
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { title: "Buy Cover", desc: "Auto payout if BTC drops below strike" },
+                  { title: "Buy Cover", desc: "Auto payout if BTC or SUI drops below strike" },
                   { title: "Earn Yield", desc: "LP to Predict vault, earn premiums" },
                   { title: "Onchain", desc: "Oracle settles trustlessly" },
                 ].map((c) => (
@@ -273,7 +277,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-gray-300">How it works</p>
                 <div className="space-y-3">
                   {[
-                    { n: "1", title: "Calculate your exposure", desc: "Enter your BTC holdings to see exact dollar downside at 5%, 10%, 20% drops." },
+                    { n: "1", title: "Calculate your exposure", desc: "Enter your BTC or SUI holdings to see exact dollar downside at 5%, 10%, 20% drops." },
                     { n: "2", title: "Buy cover or earn yield", desc: "Buy Cover: pick a strategy and get a Policy NFT. ShieldVault: deposit dUSDC and earn LP premiums." },
                     { n: "3", title: "One-click settlement", desc: "Oracle confirms price at expiry. Click Claim — payout lands in your wallet instantly, fully onchain." },
                   ].map((s) => (

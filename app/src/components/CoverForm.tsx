@@ -156,19 +156,36 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }, [suggestedCover]);
 
   useEffect(() => {
-    getActiveOracles()
-      .then((list) => {
-        // Deduplicate by expiry timestamp — multiple oracle IDs can share the same expiry date
-        const seen = new Set<number>();
-        const deduped = list.filter((o) => {
-          if (seen.has(o.expiry)) return false;
-          seen.add(o.expiry);
-          return true;
+    function dedup(list: OracleInfo[]): OracleInfo[] {
+      // Filter client-side too (guards against stale API cache)
+      const now = Date.now();
+      const seen = new Set<number>();
+      return list.filter((o) => {
+        if (o.expiry <= now) return false;
+        if (seen.has(o.expiry)) return false;
+        seen.add(o.expiry);
+        return true;
+      });
+    }
+
+    async function fetchOracles() {
+      try {
+        const list = await getActiveOracles();
+        const fresh = dedup(list);
+        setOracles(fresh);
+        // If selected oracle has expired or isn't in the new list, auto-advance
+        setOracleOption((prev) => {
+          if (!prev) return fresh[0] ?? null;
+          const still = fresh.find((o) => o.id === prev.id);
+          return still ?? fresh[0] ?? null;
         });
-        setOracles(deduped);
-        if (deduped.length > 0) setOracleOption(deduped[0]);
-      })
-      .catch(() => {});
+      } catch {}
+    }
+
+    fetchOracles();
+    // Re-fetch every 60 s so expired oracles drop off and new ones appear
+    const t = setInterval(fetchOracles, 60_000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {

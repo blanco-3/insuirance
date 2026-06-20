@@ -18,6 +18,7 @@ import {
   getActiveOracles,
   getOracleSVI,
   computeFairPremium,
+  getVaultSummary,
   type OracleInfo,
   type OraclePrice,
   type SVIParams,
@@ -85,6 +86,9 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [error, setError]               = useState<string | null>(null);
   const [view, setView]                 = useState<"buy" | "deposit">("buy");
   const [showDepthAnim, setShowDepthAnim] = useState(false);
+
+  // Vault utilization (0–1) — used to cap new cover when pool is near-full
+  const [vaultUtil, setVaultUtil] = useState<number | null>(null);
 
   // dUSDC wallet balance
   const { data: dusdcCoins, refetch: refetchCoins } = useSuiClientQuery(
@@ -185,6 +189,21 @@ export function CoverForm({ address, suggestedCover }: Props) {
     fetchOracles();
     // Re-fetch every 60 s so expired oracles drop off and new ones appear
     const t = setInterval(fetchOracles, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Fetch DeepBook vault utilization — gate new cover purchases above 90%
+  useEffect(() => {
+    async function fetchUtil() {
+      try {
+        const summary = await getVaultSummary();
+        setVaultUtil(summary.utilization ?? null);
+      } catch {
+        setVaultUtil(null);
+      }
+    }
+    fetchUtil();
+    const t = setInterval(fetchUtil, 30_000);
     return () => clearInterval(t);
   }, []);
 
@@ -611,6 +630,13 @@ export function CoverForm({ address, suggestedCover }: Props) {
                       {sviParams
                         ? <span className="text-emerald-500">SVI</span>
                         : <span className="text-gray-600">est.</span>}
+                      {" "}
+                      <span
+                        title="SVI fair value × 1.15 — the extra 15% is a slippage buffer that ensures your transaction succeeds even if the on-chain premium shifts slightly between quote and execution. Unused buffer is not charged."
+                        className="cursor-help text-gray-600 hover:text-gray-400 text-xs"
+                      >
+                        ⓘ
+                      </span>
                     </p>
                     <p className="font-semibold text-yellow-400">{formatDusdc(totalMaxPremium)}</p>
                   </div>
@@ -635,6 +661,25 @@ export function CoverForm({ address, suggestedCover }: Props) {
           </div>
         )}
 
+        {/* Utilization warning — shown when DeepBook PLP pool nears capacity */}
+        {vaultUtil !== null && vaultUtil >= 0.8 && view === "buy" && (
+          <div className={`text-sm rounded-lg px-4 py-2 border ${
+            vaultUtil >= 0.9
+              ? "text-red-400 bg-red-950/30 border-red-800/40"
+              : "text-amber-400 bg-amber-950/30 border-amber-800/40"
+          }`}>
+            <p className="font-semibold">
+              {vaultUtil >= 0.9 ? "⚠ Vault at capacity" : "⚠ Vault near capacity"}
+            </p>
+            <p className="text-xs mt-0.5">
+              DeepBook PLP pool utilization: {Math.round(vaultUtil * 100)}%
+              {vaultUtil >= 0.9
+                ? " — new cover purchases paused to protect LP depositors."
+                : " — cover may be limited. Consider a smaller position."}
+            </p>
+          </div>
+        )}
+
         {/* Buy button */}
         {view === "buy" && (
           <button
@@ -646,12 +691,15 @@ export function CoverForm({ address, suggestedCover }: Props) {
               !oracleOption ||
               oracles.length === 0 ||
               activeTriggers.length === 0 ||
-              (managerBalance !== null && managerBalance === 0n)
+              (managerBalance !== null && managerBalance === 0n) ||
+              (vaultUtil !== null && vaultUtil >= 0.9)
             }
             className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 font-semibold transition-colors"
           >
             {isPending
               ? `Signing ${activeTriggers.length} polic${activeTriggers.length > 1 ? "ies" : "y"}…`
+              : vaultUtil !== null && vaultUtil >= 0.9
+              ? "Vault at capacity"
               : managerBalance !== null && managerBalance === 0n
               ? "Deposit dUSDC first"
               : activeTriggers.length > 1

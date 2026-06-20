@@ -35,7 +35,7 @@ const RPC = getFullnodeUrl(NETWORK);
 
 const INSUIRANCE_PACKAGE =
   process.env.INSUIRANCE_PACKAGE ??
-  "0xb2832b01656468017fdcd3fab7793fc3c70edfe2cc6c0dbae526cc1a51564e8a";
+  "0x8559a28a9e20a65b0b7deeb66c6e8022b67290b52e1166d0c2cfca44f2bdd481";
 
 const SHIELD_VAULT_ID =
   process.env.SHIELD_VAULT_ID ??

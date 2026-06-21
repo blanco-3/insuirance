@@ -382,81 +382,81 @@ export function DepthAnimation({ type, onDone }: Props) {
         />
       ))}
 
-      {/* ── Diver + message + button: single flex column, centered at diverTop ── */}
+      {/* ── Diver — animates independently ────────────────────────── */}
       <div
-        className="absolute left-0 right-0 flex flex-col items-center"
+        className="absolute left-1/2 pointer-events-none"
         style={{
           top: `${diverTop}%`,
-          transform: "translateY(-50%)",
+          transform: "translateX(-50%)",
           transition: "top 2700ms cubic-bezier(0.3,0,0.25,1)",
           zIndex: 10,
-          gap: 0,
         }}
       >
-        {/* message — slides in above diver */}
-        <div
-          className="flex flex-col items-center pointer-events-none"
-          style={{
-            opacity: showMsg ? 1 : 0,
-            transform: showMsg ? "translateY(0)" : "translateY(12px)",
-            transition: "opacity 900ms ease, transform 900ms ease",
-            marginBottom: 12,
-          }}
-        >
-          <div className="flex items-center gap-5">
-            <div style={{ width: 1, height: 36, background: "rgba(42,212,255,0.28)" }} />
-            <div className="text-center space-y-1">
-              <p
-                className="text-xs font-mono tracking-[0.28em] uppercase"
-                style={{ color: "#2ad4ff" }}
-              >
-                {type === "deposit" ? "Secured in the deep" : "Cover active in the deep"}
-              </p>
-              <p className="text-xs font-mono" style={{ color: "rgba(160,210,255,0.32)" }}>
-                Calm beneath the chaos · Powered by DeepBook
-              </p>
-            </div>
-            <div style={{ width: 1, height: 36, background: "rgba(42,212,255,0.28)" }} />
-          </div>
-        </div>
-
-        {/* diver */}
         <Diver glowing={bgDark} angle={diverAngle} />
+      </div>
 
-        {/* button — fades in below diver */}
-        <div
-          className="flex flex-col items-center gap-2"
-          style={{
-            opacity: canDismiss ? 1 : 0,
-            transition: "opacity 700ms ease",
-            pointerEvents: canDismiss ? "auto" : "none",
-            marginTop: 14,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={dismissDive}
-            style={{
-              background: "linear-gradient(180deg,#5fe2ff,#16a8df)",
-              color: "#04121f",
-              borderRadius: 11,
-              padding: "10px 28px",
-              fontWeight: 600,
-              fontSize: 14,
-              boxShadow: "0 0 24px -4px rgba(42,212,255,.6)",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Enter the deep →
-          </button>
-          <p
-            className="text-xs font-mono drift-anim"
-            style={{ color: "rgba(140,195,235,.4)" }}
-          >
-            press anywhere to continue
-          </p>
+      {/* ── Message — pinned just above diver's final resting spot ── */}
+      {/* diver final top=48%, diver height≈82px → bottom of msg = 48vh - 12px */}
+      <div
+        className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
+        style={{
+          bottom: "calc(52% + 12px)",
+          opacity: showMsg ? 1 : 0,
+          transform: showMsg ? "translateY(0)" : "translateY(10px)",
+          transition: "opacity 900ms ease, transform 900ms ease",
+        }}
+      >
+        <div className="flex items-center gap-5">
+          <div style={{ width: 1, height: 36, background: "rgba(42,212,255,0.28)" }} />
+          <div className="text-center space-y-1">
+            <p
+              className="text-xs font-mono tracking-[0.28em] uppercase"
+              style={{ color: "#2ad4ff" }}
+            >
+              {type === "deposit" ? "Secured in the deep" : "Cover active in the deep"}
+            </p>
+            <p className="text-xs font-mono" style={{ color: "rgba(160,210,255,0.32)" }}>
+              Calm beneath the chaos · Powered by DeepBook
+            </p>
+          </div>
+          <div style={{ width: 1, height: 36, background: "rgba(42,212,255,0.28)" }} />
         </div>
+      </div>
+
+      {/* ── Button — pinned just below diver's final resting spot ─── */}
+      {/* diver top=48%, diver height≈82px → top of btn = 48vh + 82px + 10px */}
+      <div
+        className="absolute left-0 right-0 flex flex-col items-center gap-2"
+        style={{
+          top: "calc(48% + 92px)",
+          opacity: canDismiss ? 1 : 0,
+          transition: "opacity 700ms ease",
+          pointerEvents: canDismiss ? "auto" : "none",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={dismissDive}
+          style={{
+            background: "linear-gradient(180deg,#5fe2ff,#16a8df)",
+            color: "#04121f",
+            borderRadius: 11,
+            padding: "10px 28px",
+            fontWeight: 600,
+            fontSize: 14,
+            boxShadow: "0 0 24px -4px rgba(42,212,255,.6)",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Enter the deep →
+        </button>
+        <p
+          className="text-xs font-mono drift-anim"
+          style={{ color: "rgba(140,195,235,.4)" }}
+        >
+          press anywhere to continue
+        </p>
       </div>
 
       {/* ── Skip (only while waiting to dive, before canDismiss) ───── */}

@@ -1113,7 +1113,7 @@ function PremiumSparkline({
 
 // ── Timeline cards ─────────────────────────────────────────────────────────
 
-function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
+function ExpiryTimeline({ oracles, selected, onSelect, sviParams, forwardRaw, spotRaw }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Scroll selected card into view when selection changes
@@ -1143,6 +1143,18 @@ function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
             const time  = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
             const { label: cd, urgent } = countdown(o.expiry);
             const days  = daysLeft(o.expiry);
+
+            // Per-card max viable coverage (pure SVI math — no API call)
+            const oracleMaxBps = sviParams && forwardRaw > 0n && spotRaw > 0n
+              ? computeMaxViableBps(
+                  sviParams, forwardRaw, spotRaw, o.expiry,
+                  o.tick_size ? BigInt(o.tick_size) : undefined,
+                  o.min_strike ? BigInt(o.min_strike) : undefined,
+                )
+              : null;
+            const maxPct = oracleMaxBps != null
+              ? (oracleMaxBps / 100).toFixed(1).replace(/\.0$/, "")
+              : null;
 
             return (
               <button
@@ -1191,6 +1203,16 @@ function ExpiryTimeline({ oracles, selected, onSelect }: TimelineProps) {
                 >
                   {cd}
                 </span>
+
+                {/* Max coverage badge */}
+                {maxPct && (
+                  <span
+                    className="text-xs font-mono leading-none"
+                    style={{ color: isSel ? "#00d4ff" : "rgba(100,160,210,0.55)" }}
+                  >
+                    ≤{maxPct}% drop
+                  </span>
+                )}
 
                 {/* Days-bar at bottom */}
                 <div className="w-full h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>

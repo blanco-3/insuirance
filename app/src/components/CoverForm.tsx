@@ -293,34 +293,35 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const coverRaw   = BigInt(Math.round(parseFloat(coverAmount   || "0") * 1_000_000));
   const depositRaw = BigInt(Math.round(parseFloat(depositAmount || "0") * 1_000_000));
 
-  // Only include selected triggers that are also priceable by the oracle (fair price >= 1% notional)
-  const activeTriggers = TRIGGERS.filter(
-    (t) => selectedTriggers.has(t.bps.toString()) && isTriggerViable(t.bps)
-  );
-
+  // Must be declared before activeTriggers — getFairFraction references these via isTriggerViable
   const oracleTick = oracleOption ? BigInt(oracleOption.tick_size) : undefined;
   const oracleMin  = oracleOption ? BigInt(oracleOption.min_strike) : undefined;
 
-  function getFairFraction(bps: bigint): number {
+  const getFairFraction = (bps: bigint): number => {
     if (!sviParams || forwardRaw === 0n || !oracleOption || coverRaw === 0n) return 0;
     const strike = computeStrike(spotRaw, bps, oracleTick, oracleMin);
     const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
     return Number(fair) / Number(coverRaw);
-  }
+  };
 
-  function isTriggerViable(bps: bigint): boolean {
+  const isTriggerViable = (bps: bigint): boolean => {
     if (!sviParams) return false; // pessimistic — block until SVI loads
     return getFairFraction(bps) >= MIN_ASK_FRACTION;
-  }
+  };
 
-  function getMaxPremium(bps: bigint): bigint {
+  // Only include selected triggers that are also priceable by the oracle
+  const activeTriggers = TRIGGERS.filter(
+    (t) => selectedTriggers.has(t.bps.toString()) && isTriggerViable(t.bps)
+  );
+
+  const getMaxPremium = (bps: bigint): bigint => {
     if (sviParams && forwardRaw > 0n && oracleOption) {
       const strike = computeStrike(spotRaw, bps, oracleTick, oracleMin);
       const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
       if (fair > 0n) return (fair * 115n) / 100n;
     }
     return (coverRaw * 20n) / 100n;
-  }
+  };
 
   const totalMaxPremium = activeTriggers.reduce((acc, t) => acc + getMaxPremium(t.bps), 0n);
 

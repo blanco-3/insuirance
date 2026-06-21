@@ -79,11 +79,28 @@ function normalizeOracle(raw: any): OracleInfo {
 
 // ─── API functions ────────────────────────────────────────────────────────
 
-/** Latest spot price for a given oracle (API returns array, newest first) */
+/**
+ * Fetch spot/forward prices directly from the on-chain oracle object.
+ * The indexer API can lag; using on-chain values ensures the strike we
+ * compute matches what the contract sees when validating viability.
+ */
 export async function getOraclePrice(oracleId: string): Promise<OraclePrice> {
-  const events = await get<any[]>(`/oracles/${oracleId}/prices`);
-  if (!Array.isArray(events) || events.length === 0) throw new Error("No price data");
-  return { spot: String(events[0].spot), forward: String(events[0].forward) };
+  const SUI_RPC = "https://fullnode.testnet.sui.io:443";
+  const res = await fetch(SUI_RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "sui_getObject",
+      params: [oracleId, { showContent: true }],
+    }),
+  });
+  if (!res.ok) throw new Error(`RPC error: ${res.status}`);
+  const data = await res.json();
+  const prices = data?.result?.data?.content?.fields?.prices?.fields;
+  if (!prices) throw new Error("No price data in oracle object");
+  return { spot: String(prices.spot), forward: String(prices.forward) };
 }
 
 /** Vault liquidity summary */
@@ -111,17 +128,35 @@ export async function getManagerPositions(managerId: string): Promise<ManagerPos
   return get<ManagerPosition[]>(`/managers/${managerId}/positions`);
 }
 
-/** Latest SVI params for an oracle. Throws if no data available. */
+/**
+ * Fetch SVI params directly from the on-chain oracle object via Sui RPC.
+ * This is authoritative — the indexer API lags and can serve stale params
+ * that differ from what the contract actually uses, causing pricing_config
+ * abort code 1 failures when our client-side viability check is based on
+ * outdated values.
+ */
 export async function getOracleSVI(oracleId: string): Promise<SVIParams> {
-  const records = await get<any[]>(`/oracles/${oracleId}/svi`);
-  if (!Array.isArray(records) || records.length === 0) throw new Error("No SVI data");
-  const r = records[0];
+  const SUI_RPC = "https://fullnode.testnet.sui.io:443";
+  const res = await fetch(SUI_RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "sui_getObject",
+      params: [oracleId, { showContent: true }],
+    }),
+  });
+  if (!res.ok) throw new Error(`RPC error: ${res.status}`);
+  const data = await res.json();
+  const svi = data?.result?.data?.content?.fields?.svi?.fields;
+  if (!svi) throw new Error("No SVI data in oracle object");
   return {
-    a:     r.a     / 1e9,
-    b:     r.b     / 1e9,
-    rho:   r.rho   / 1e9 * (r.rho_negative ? -1 : 1),
-    m:     r.m     / 1e9 * (r.m_negative   ? -1 : 1),
-    sigma: r.sigma / 1e9,
+    a:     Number(svi.a)     / 1e9,
+    b:     Number(svi.b)     / 1e9,
+    rho:   Number(svi.rho.fields.magnitude) / 1e9 * (svi.rho.fields.is_negative ? -1 : 1),
+    m:     Number(svi.m.fields.magnitude)   / 1e9 * (svi.m.fields.is_negative   ? -1 : 1),
+    sigma: Number(svi.sigma) / 1e9,
   };
 }
 

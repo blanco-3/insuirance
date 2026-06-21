@@ -10,6 +10,20 @@ steps:
       - 'asia-northeast3-docker.pkg.dev/pmpm-490718/cloud-run-source-deploy/insuirance:latest'
       - '.'
 
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'insuirance'
+      - '--image'
+      - 'asia-northeast3-docker.pkg.dev/pmpm-490718/cloud-run-source-deploy/insuirance:latest'
+      - '--region'
+      - 'asia-northeast3'
+      - '--platform'
+      - 'managed'
+      - '--quiet'
+
 images:
   - 'asia-northeast3-docker.pkg.dev/pmpm-490718/cloud-run-source-deploy/insuirance:latest'
 

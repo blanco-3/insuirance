@@ -87,6 +87,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [error, setError]               = useState<string | null>(null);
   const [view, setView]                 = useState<"buy" | "deposit">("buy");
   const [showDepthAnim, setShowDepthAnim] = useState(false);
+  const [validating, setValidating] = useState(false);
 
   // Vault utilization (0–1) — used to cap new cover when pool is near-full
   const [vaultUtil, setVaultUtil] = useState<number | null>(null);
@@ -198,9 +199,13 @@ export function CoverForm({ address, suggestedCover }: Props) {
         setOracles(fresh);
         // If selected oracle has expired or isn't in the new list, auto-advance
         setOracleOption((prev) => {
-          if (!prev) return fresh[0] ?? null;
+          // Prefer oracles with at least 60 min TTL so options have meaningful probability
+          const MIN_TTL_MS = 60 * 60 * 1000;
+          const safeFallback =
+            fresh.find((o) => o.expiry - Date.now() >= MIN_TTL_MS) ?? fresh[0] ?? null;
+          if (!prev) return safeFallback;
           const still = fresh.find((o) => o.id === prev.id);
-          return still ?? fresh[0] ?? null;
+          return still ?? safeFallback;
         });
       } catch {}
     }
@@ -291,7 +296,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }
 
   function isTriggerViable(bps: bigint): boolean {
-    if (!sviParams) return true; // optimistic before SVI loads
+    if (!sviParams) return false; // pessimistic — block until SVI loads
     return getFairFraction(bps) >= MIN_ASK_FRACTION;
   }
 
@@ -377,6 +382,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
     if (!oracleOption)      { setError("No active oracle available"); return; }
     if (coverRaw === 0n)    { setError("Enter cover amount"); return; }
     if (activeTriggers.length === 0) { setError("Select at least one trigger"); return; }
+    if (!sviParams)         { setError("Oracle pricing not loaded yet"); return; }
     if (totalMaxPremium === 0n) {
       setError("Could not compute premium — oracle may be expired or price unavailable");
       return;
@@ -387,40 +393,81 @@ export function CoverForm({ address, suggestedCover }: Props) {
     }
     setError(null); setTxDigest(null);
 
-    try {
-      const tx = new Transaction();
-      const policies: any[] = [];
-      const assetBytes = Array.from(new TextEncoder().encode(oracleOption.underlying_asset));
+    const assetBytes = Array.from(new TextEncoder().encode(oracleOption.underlying_asset));
+    const U64_MAX = BigInt("18446744073709551615");
 
+    // Helper: build buy_cover_entry transaction with a given maxPremium per trigger
+    function buildTx(premiumPerTrigger: Map<string, bigint> | null) {
+      const tx = new Transaction();
       for (const trigger of activeTriggers) {
-        const strike     = computeStrike(spotRaw, trigger.bps, oracleTick, oracleMin);
-        const maxPremium = getMaxPremium(trigger.bps);
-        // vault::buy_cover_entry: on-chain cover cap (90% of vault PLP) +
-        // policy::buy_cover + internal transfer to sender.
-        // No transferObjects needed — entry function handles it.
+        const strike = computeStrike(spotRaw, trigger.bps, oracleTick, oracleMin);
+        const mp = premiumPerTrigger
+          ? premiumPerTrigger.get(trigger.bps.toString()) ?? getMaxPremium(trigger.bps)
+          : U64_MAX;
         tx.moveCall({
           target: `${INSUIRANCE_PACKAGE}::vault::buy_cover_entry`,
           typeArguments: [DUSDC_TYPE],
           arguments: [
             tx.object(SHIELD_VAULT_ID),
             tx.object(PREDICT_ID),
-            tx.object(managerId),
-            tx.object(oracleOption.id),
+            tx.object(managerId!),
+            tx.object(oracleOption!.id),
             tx.pure.u64(strike),
-            tx.pure.u64(BigInt(oracleOption.expiry)),
+            tx.pure.u64(BigInt(oracleOption!.expiry)),
             tx.pure.u64(coverRaw),
-            tx.pure.u64(maxPremium),
+            tx.pure.u64(mp),
             tx.pure.vector("u8", assetBytes),
             tx.object(CLOCK_ID),
           ],
         });
       }
+      return tx;
+    }
 
-      const result = await signAndExecute({ transaction: tx });
+    try {
+      // ── Step 1: devInspect with u64::MAX maxPremium to validate on-chain ──
+      setValidating(true);
+      const simTx = buildTx(null);
+      const simResult = await client.devInspectTransactionBlock({
+        transactionBlock: simTx,
+        sender: address,
+      });
+
+      if (simResult.effects?.status?.status === "failure") {
+        const errStr = simResult.effects.status.error ?? "Transaction would fail on-chain";
+        const msg = parseError(new Error(errStr));
+        setError(msg || errStr);
+        setValidating(false);
+        return;
+      }
+
+      // ── Step 2: extract actual premium_paid from CoverBought events ──
+      const premiumPerTrigger = new Map<string, bigint>();
+      let triggerIdx = 0;
+      if (simResult.events) {
+        for (const ev of simResult.events) {
+          if (ev.type.includes("::policy::CoverBought") && triggerIdx < activeTriggers.length) {
+            const paid = BigInt((ev.parsedJson as any)?.premium_paid ?? "0");
+            const bpsKey = activeTriggers[triggerIdx].bps.toString();
+            // 15% slippage buffer, minimum 1
+            const buffered = paid > 0n ? (paid * 115n) / 100n : 1n;
+            premiumPerTrigger.set(bpsKey, buffered > 1n ? buffered : 1n);
+            triggerIdx++;
+          }
+        }
+      }
+
+      setValidating(false);
+
+      // ── Step 3: build & sign real transaction with accurate maxPremium ──
+      const realTx = buildTx(premiumPerTrigger.size > 0 ? premiumPerTrigger : null);
+
+      const result = await signAndExecute({ transaction: realTx });
       setTxDigest(result.digest);
       setShowDepthAnim(true);
       setManagerBalance(await fetchOnChainBalance(managerId));
     } catch (e: any) {
+      setValidating(false);
       const msg = parseError(e);
       if (msg) setError(msg);
     }
@@ -734,7 +781,9 @@ export function CoverForm({ address, suggestedCover }: Props) {
             onClick={handleBuyCover}
             disabled={
               isPending ||
+              validating ||
               loadingPrice ||
+              !sviParams ||
               coverRaw === 0n ||
               !oracleOption ||
               oracles.length === 0 ||
@@ -744,8 +793,12 @@ export function CoverForm({ address, suggestedCover }: Props) {
             }
             className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 font-semibold transition-colors"
           >
-            {isPending
+            {validating
+              ? "Validating…"
+              : isPending
               ? `Signing ${activeTriggers.length} polic${activeTriggers.length > 1 ? "ies" : "y"}…`
+              : !sviParams
+              ? "Loading oracle pricing…"
               : vaultUtil !== null && vaultUtil >= 0.9
               ? "Vault at capacity"
               : managerBalance !== null && managerBalance === 0n

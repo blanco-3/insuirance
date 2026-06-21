@@ -79,28 +79,11 @@ function normalizeOracle(raw: any): OracleInfo {
 
 // ─── API functions ────────────────────────────────────────────────────────
 
-/**
- * Fetch spot/forward prices directly from the on-chain oracle object.
- * The indexer API can lag; using on-chain values ensures the strike we
- * compute matches what the contract sees when validating viability.
- */
+/** Latest spot/forward prices for a given oracle (API returns array, newest first) */
 export async function getOraclePrice(oracleId: string): Promise<OraclePrice> {
-  const SUI_RPC = "https://fullnode.testnet.sui.io:443";
-  const res = await fetch(SUI_RPC, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "sui_getObject",
-      params: [oracleId, { showContent: true }],
-    }),
-  });
-  if (!res.ok) throw new Error(`RPC error: ${res.status}`);
-  const data = await res.json();
-  const prices = data?.result?.data?.content?.fields?.prices?.fields;
-  if (!prices) throw new Error("No price data in oracle object");
-  return { spot: String(prices.spot), forward: String(prices.forward) };
+  const events = await get<any[]>(`/oracles/${oracleId}/prices`);
+  if (!Array.isArray(events) || events.length === 0) throw new Error("No price data");
+  return { spot: String(events[0].spot), forward: String(events[0].forward) };
 }
 
 /** Vault liquidity summary */

@@ -395,12 +395,12 @@ export function DepthAnimation({ type, onDone }: Props) {
         <Diver glowing={bgDark} angle={diverAngle} />
       </div>
 
-      {/* ── Message — pinned just above diver's final resting spot ── */}
-      {/* diver final top=62%, diver height≈82px → bottom of msg = 38vh - 12px */}
+      {/* ── Message — tracks diver top in real-time, appears when stopped ── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
         style={{
-          bottom: "calc(38% + 12px)",
+          top: `calc(${diverTop}% - 58px)`,
+          transition: "top 2700ms cubic-bezier(0.3,0,0.25,1)",
           opacity: showMsg ? 1 : 0,
           transform: showMsg ? "translateY(0)" : "translateY(10px)",
           transition: "opacity 900ms ease, transform 900ms ease",
@@ -423,14 +423,13 @@ export function DepthAnimation({ type, onDone }: Props) {
         </div>
       </div>
 
-      {/* ── Button — pinned just below diver's final resting spot ─── */}
-      {/* diver top=62%, diver height≈82px → top of btn = 62vh + 82px + 10px */}
+      {/* ── Button — tracks diver just below it ─── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-2"
         style={{
-          top: "calc(62% + 92px)",
+          top: `calc(${diverTop}% + 92px)`,
+          transition: "top 2700ms cubic-bezier(0.3,0,0.25,1), opacity 700ms ease",
           opacity: canDismiss ? 1 : 0,
-          transition: "opacity 700ms ease",
           pointerEvents: canDismiss ? "auto" : "none",
         }}
         onClick={(e) => e.stopPropagation()}

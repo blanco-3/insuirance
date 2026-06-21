@@ -41,16 +41,16 @@ const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
 const MIN_ASK_FRACTION = 0.02; // 2% — minimum viable fair premium fraction
 
 const TRIGGERS = [
-  { label: "0.5%", bps: 50n,  desc: "Mild dip" },
-  { label: "1%",   bps: 100n, desc: "Correction" },
-  { label: "2%",   bps: 200n, desc: "Crash" },
+  { label: "5%",  bps: 500n,  desc: "Mild dip" },
+  { label: "10%", bps: 1000n, desc: "Correction" },
+  { label: "20%", bps: 2000n, desc: "Crash" },
 ];
 
 const STRATEGIES: { label: string; sub: string; bpsSet: bigint[]; color: string }[] = [
-  { label: "Conservative", sub: "0.5% drop",  bpsSet: [50n],          color: "sky" },
-  { label: "Balanced",     sub: "1% drop",    bpsSet: [100n],         color: "violet" },
-  { label: "Crash",        sub: "2% drop",    bpsSet: [200n],         color: "rose" },
-  { label: "Full Ladder",  sub: "All levels", bpsSet: [50n, 100n, 200n], color: "emerald" },
+  { label: "Conservative", sub: "5% drop",    bpsSet: [500n],              color: "sky" },
+  { label: "Balanced",     sub: "10% drop",   bpsSet: [1000n],             color: "violet" },
+  { label: "Black Swan",   sub: "20% drop",   bpsSet: [2000n],             color: "rose" },
+  { label: "Full Ladder",  sub: "All levels", bpsSet: [500n, 1000n, 2000n], color: "emerald" },
 ];
 
 const COLOR_MAP: Record<string, { active: string }> = {
@@ -63,9 +63,10 @@ const COLOR_MAP: Record<string, { active: string }> = {
 interface Props {
   address: string;
   suggestedCover?: string;
+  onBought?: () => void;
 }
 
-export function CoverForm({ address, suggestedCover }: Props) {
+export function CoverForm({ address, suggestedCover, onBought }: Props) {
   const { mutateAsync: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const client = useSuiClient();
 
@@ -95,6 +96,11 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const [txDigest, setTxDigest]         = useState<string | null>(null);
   const [error, setError]               = useState<string | null>(null);
   const [view, setView]                 = useState<"buy" | "deposit">("buy");
+
+  // Snapshot of purchased policies — shown in success banner after buy
+  const [purchasedPolicies, setPurchasedPolicies] = useState<Array<{
+    asset: string; strike: bigint; expiry: number; qty: bigint; label: string;
+  }>>([]);
   const [showDepthAnim, setShowDepthAnim] = useState(false);
   const [validating, setValidating] = useState(false);
 
@@ -405,7 +411,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
       setError("Insufficient manager balance — deposit more dUSDC first");
       return;
     }
-    setError(null); setTxDigest(null);
+    setError(null); setTxDigest(null); setPurchasedPolicies([]);
 
     const assetBytes = Array.from(new TextEncoder().encode(oracleOption.underlying_asset));
     const U64_MAX = BigInt("18446744073709551615");
@@ -485,6 +491,16 @@ export function CoverForm({ address, suggestedCover }: Props) {
       const realTx = buildTx(premiumPerTrigger.size > 0 ? premiumPerTrigger : null);
 
       const result = await signAndExecute({ transaction: realTx });
+
+      // Snapshot purchased policies for the success banner
+      const snapshot = activeTriggers.map((t) => ({
+        asset:  oracleOption!.underlying_asset,
+        strike: computeStrike(spotRaw, t.bps, oracleTick, oracleMin),
+        expiry: oracleOption!.expiry,
+        qty:    coverRaw,
+        label:  t.label,
+      }));
+      setPurchasedPolicies(snapshot);
       setTxDigest(result.digest);
       setShowDepthAnim(true);
       setManagerBalance(await fetchOnChainBalance(managerId));
@@ -552,6 +568,75 @@ export function CoverForm({ address, suggestedCover }: Props) {
       )}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
+
+        {/* ── Success banner — shown after buy completes ── */}
+        {txDigest && view === "buy" && (
+          <div
+            className="rounded-xl px-4 py-4 space-y-4"
+            style={{ background: "rgba(42,212,255,.06)", border: "1px solid rgba(42,212,255,.22)" }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7.5" stroke="#2ad4ff" strokeOpacity=".6"/>
+                <path d="M4.5 8.5L7 11L11.5 5.5" stroke="#2ad4ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <p className="text-sm font-semibold" style={{ color: "#2ad4ff" }}>
+                {purchasedPolicies.length > 1
+                  ? `${purchasedPolicies.length} Policy NFTs minted to your wallet`
+                  : purchasedPolicies.length === 1
+                  ? "Policy NFT minted to your wallet"
+                  : "Cover active in the deep"}
+              </p>
+            </div>
+
+            {/* NFT images */}
+            <div className={`grid gap-3 ${purchasedPolicies.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {purchasedPolicies.map((p) => (
+                <div key={p.label} className="space-y-1.5">
+                  <img
+                    src={`/api/nft?asset=${p.asset}&strike=${p.strike}&expiry=${p.expiry}&qty=${p.qty}&status=0`}
+                    alt={`${p.asset} ${p.label} drop cover NFT`}
+                    className="w-full rounded-lg"
+                    style={{ border: "1px solid rgba(42,212,255,.15)" }}
+                  />
+                  <p className="text-xs text-center font-mono" style={{ color: "rgba(42,212,255,.5)" }}>
+                    {p.label} drop trigger
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Claim instructions */}
+            <div
+              className="rounded-lg px-3 py-2.5 text-xs space-y-1"
+              style={{ background: "rgba(0,0,0,.25)", border: "1px solid rgba(255,255,255,.06)" }}
+            >
+              <p className="font-semibold" style={{ color: "rgba(200,230,255,.7)" }}>How to claim your payout</p>
+              <p style={{ color: "rgba(140,175,215,.5)" }}>
+                This NFT lives in your wallet. When the oracle settles and BTC closes at or below the strike,
+                go to <span className="font-semibold text-white/60">My Policies</span> below and click <span className="font-semibold text-white/60">Claim</span>.
+                Without this NFT you cannot receive the payout.
+              </p>
+            </div>
+
+            {/* Go to My Cover */}
+            {onBought && (
+              <button
+                onClick={onBought}
+                className="w-full rounded-lg py-2.5 text-sm font-semibold transition-colors"
+                style={{ background: "rgba(42,212,255,.12)", color: "#2ad4ff", border: "1px solid rgba(42,212,255,.25)" }}
+              >
+                View in My Cover →
+              </button>
+            )}
+
+            {/* Tx hash */}
+            <p className="font-mono text-xs break-all" style={{ color: "rgba(100,150,200,.35)" }}>
+              tx: {txDigest}
+            </p>
+          </div>
+        )}
 
         {/* Manager balance */}
         <div className="flex items-center justify-between text-sm">
@@ -763,19 +848,11 @@ export function CoverForm({ address, suggestedCover }: Props) {
           </>
         )}
 
-        {/* Error / Success */}
+        {/* Error */}
         {error && (
           <p className="text-sm text-red-400 bg-red-950/30 border border-red-800/40 rounded-lg px-4 py-2">
             {error}
           </p>
-        )}
-        {txDigest && view === "buy" && (
-          <div className="text-sm text-green-400 bg-green-950/30 border border-green-800/40 rounded-lg px-4 py-2">
-            <p className="font-semibold">
-              {activeTriggers.length > 1 ? `${activeTriggers.length} cover policies purchased!` : "Cover purchased!"}
-            </p>
-            <p className="font-mono text-xs break-all mt-1">{txDigest}</p>
-          </div>
         )}
 
         {/* Utilization warning — shown when DeepBook PLP pool nears capacity */}

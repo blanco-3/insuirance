@@ -252,6 +252,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   useEffect(() => {
     if (!oracleOption) return;
+    // Reset price when oracle changes so forwardRaw stays 0n until new oracle's price loads.
+    // Without this, isTriggerViable computes with the previous oracle's forward price,
+    // which can make unviable triggers appear viable.
+    setPrice(null);
     setSviParams(null);
     getOracleSVI(oracleOption.id)
       .then(setSviParams)
@@ -287,9 +291,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const oracleTick = oracleOption ? BigInt(oracleOption.tick_size) : undefined;
   const oracleMin  = oracleOption ? BigInt(oracleOption.min_strike) : undefined;
 
-  // Minimum ask price enforced by pricing_config on-chain (1% of notional).
-  // Options whose fair price is below this threshold get rejected with abort code 1.
-  const MIN_ASK_FRACTION = 0.01; // 1%
+  // On-chain min_ask_price = 1% of notional. We use 2× that (2%) as our client-side
+  // threshold to absorb SVI parameter updates that happen between our check and the
+  // wallet's own dry-run. This prevents the pricing_config abort code 1 race condition.
+  const MIN_ASK_FRACTION = 0.02; // 2%
 
   function getFairFraction(bps: bigint): number {
     if (!sviParams || forwardRaw === 0n || !oracleOption || coverRaw === 0n) return 0;
@@ -463,6 +468,14 @@ export function CoverForm({ address, suggestedCover }: Props) {
       setValidating(false);
 
       // ── Step 3: build & sign real transaction with accurate maxPremium ──
+      // Re-validate viability right before submitting — SVI params may have updated
+      // between our initial check and now.
+      const stillViable = activeTriggers.every((t) => isTriggerViable(t.bps));
+      if (!stillViable) {
+        setError("Oracle pricing shifted — please try again or select a longer expiry.");
+        return;
+      }
+
       const realTx = buildTx(premiumPerTrigger.size > 0 ? premiumPerTrigger : null);
 
       const result = await signAndExecute({ transaction: realTx });

@@ -41,16 +41,16 @@ const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
 const MIN_ASK_FRACTION = 0.02; // 2% — minimum viable fair premium fraction
 
 const TRIGGERS = [
-  { label: "5%",  bps: 500n,  desc: "Mild dip" },
-  { label: "10%", bps: 1000n, desc: "Correction" },
-  { label: "20%", bps: 2000n, desc: "Crash" },
+  { label: "0.5%", bps: 50n,  desc: "Mild dip" },
+  { label: "1%",   bps: 100n, desc: "Correction" },
+  { label: "2%",   bps: 200n, desc: "Crash" },
 ];
 
 const STRATEGIES: { label: string; sub: string; bpsSet: bigint[]; color: string }[] = [
-  { label: "Conservative", sub: "5% drop",    bpsSet: [500n],              color: "sky" },
-  { label: "Balanced",     sub: "10% drop",   bpsSet: [1000n],             color: "violet" },
-  { label: "Black Swan",   sub: "20% drop",   bpsSet: [2000n],             color: "rose" },
-  { label: "Full Ladder",  sub: "All levels", bpsSet: [500n, 1000n, 2000n], color: "emerald" },
+  { label: "Conservative", sub: "0.5% drop",  bpsSet: [50n],           color: "sky" },
+  { label: "Balanced",     sub: "1% drop",    bpsSet: [100n],          color: "violet" },
+  { label: "Crash",        sub: "2% drop",    bpsSet: [200n],          color: "rose" },
+  { label: "Full Ladder",  sub: "All levels", bpsSet: [50n, 100n, 200n], color: "emerald" },
 ];
 
 const COLOR_MAP: Record<string, { active: string }> = {
@@ -80,6 +80,8 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
   const [price, setPrice]               = useState<OraclePrice | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
   const [sviParams, setSviParams]       = useState<SVIParams | null>(null);
+  const [oracleMaxStrike, setOracleMaxStrike] = useState<bigint>(0n);
+  const [oracleSettled, setOracleSettled]     = useState(false);
 
   // Form state
   const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(
@@ -270,10 +272,16 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     // which can make unviable triggers appear viable.
     setPrice(null);
     setSviParams(null);
+    setOracleMaxStrike(0n);
+    setOracleSettled(false);
     getOracleSVI(oracleOption.id)
-      .then((params) => {
-        // Reject any params with NaN/Infinity — would cause BigInt(NaN) crash in render
-        if (Object.values(params).every(Number.isFinite)) setSviParams(params);
+      .then((result) => {
+        // If oracle is settled on-chain, flag it and keep sviParams null to disable the form
+        if (!result.active) { setOracleSettled(true); return; }
+        setOracleSettled(false);
+        // Reject any SVI params with NaN/Infinity — would cause BigInt(NaN) crash in render
+        if (Object.values(result.svi).every(Number.isFinite)) setSviParams(result.svi);
+        if (result.maxStrike > 0n) setOracleMaxStrike(result.maxStrike);
       })
       .catch(() => {});
   }, [oracleOption?.id]);
@@ -312,7 +320,13 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
 
   const isTriggerViable = (bps: bigint): boolean => {
     if (!sviParams) return false; // pessimistic — block until SVI loads
-    return getFairFraction(bps) >= MIN_ASK_FRACTION;
+    if (getFairFraction(bps) < MIN_ASK_FRACTION) return false;
+    // Reject strikes outside the oracle's supported grid
+    if (oracleMaxStrike > 0n && oracleTick && oracleMin) {
+      const strike = computeStrike(spotRaw, bps, oracleTick, oracleMin);
+      if (strike > oracleMaxStrike) return false;
+    }
+    return true;
   };
 
   // Only include selected triggers that are also priceable by the oracle
@@ -456,6 +470,20 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
       if (simResult.effects?.status?.status === "failure") {
         const errStr = simResult.effects.status.error ?? "Transaction would fail on-chain";
         const msg = parseError(new Error(errStr));
+
+        // Grid too narrow for this strike — auto-switch to the longest expiry oracle
+        const isGridError = /grid|supported range|pricing_config|abort.*1\b/i.test(errStr) ||
+          (msg ?? "").includes("oracle's supported range");
+        if (isGridError && oracles.length > 1) {
+          const longest = [...oracles].sort((a, b) => b.expiry - a.expiry)[0];
+          if (longest && longest.id !== oracleOption?.id) {
+            setOracleOption(longest);
+            setError("Strike outside this expiry's grid — switched to longest available expiry. Review and try again.");
+            setValidating(false);
+            return;
+          }
+        }
+
         setError(msg || errStr);
         setValidating(false);
         return;
@@ -507,6 +535,16 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     } catch (e: any) {
       setValidating(false);
       const msg = parseError(e);
+      const isGridError = /grid|supported range|pricing_config/i.test(e?.message ?? "") ||
+        (msg ?? "").includes("oracle's supported range");
+      if (isGridError && oracles.length > 1) {
+        const longest = [...oracles].sort((a, b) => b.expiry - a.expiry)[0];
+        if (longest && longest.id !== oracleOption?.id) {
+          setOracleOption(longest);
+          setError("Strike outside this expiry's grid — switched to longest available expiry. Review and try again.");
+          return;
+        }
+      }
       if (msg) setError(msg);
     }
   }
@@ -882,6 +920,7 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
               isPending ||
               validating ||
               loadingPrice ||
+              oracleSettled ||
               !sviParams ||
               coverRaw === 0n ||
               !oracleOption ||
@@ -896,6 +935,8 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
               ? "Validating…"
               : isPending
               ? `Signing ${activeTriggers.length} polic${activeTriggers.length > 1 ? "ies" : "y"}…`
+              : oracleSettled
+              ? "Oracle settled — select a different expiry"
               : !sviParams
               ? "Loading oracle pricing…"
               : vaultUtil !== null && vaultUtil >= 0.9

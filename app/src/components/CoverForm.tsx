@@ -828,6 +828,17 @@ export function CoverForm({ address, suggestedCover }: Props) {
         <p className="text-xs text-gray-600 text-center">
           Powered by DeepBook Predict · Sui Testnet
         </p>
+
+        {/* Dev preview — hover to reveal, triggers success animation */}
+        <button
+          onClick={() => setShowDepthAnim(true)}
+          className="block mx-auto text-xs font-mono transition-colors duration-200"
+          style={{ color: "rgba(255,255,255,0.07)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(42,212,255,0.45)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.07)")}
+        >
+          preview animation
+        </button>
       </div>
     </>
   );

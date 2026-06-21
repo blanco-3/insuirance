@@ -160,6 +160,24 @@ export function CoverForm({ address, suggestedCover }: Props) {
     setView("buy");
   }, [suggestedCover]);
 
+  // Auto-deselect triggers that become unviable when oracle/SVI changes
+  useEffect(() => {
+    if (!sviParams) return;
+    setSelectedTriggers((prev) => {
+      const next = new Set<string>();
+      for (const key of prev) {
+        if (isTriggerViable(BigInt(key))) next.add(key);
+      }
+      // Always keep at least one selected; fallback to smallest viable
+      if (next.size === 0) {
+        const viable = TRIGGERS.find((t) => isTriggerViable(t.bps));
+        if (viable) next.add(viable.bps.toString());
+      }
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sviParams, oracleOption?.id]);
+
   useEffect(() => {
     function dedup(list: OracleInfo[]): OracleInfo[] {
       // Filter client-side too (guards against stale API cache)
@@ -253,10 +271,29 @@ export function CoverForm({ address, suggestedCover }: Props) {
   const coverRaw   = BigInt(Math.round(parseFloat(coverAmount   || "0") * 1_000_000));
   const depositRaw = BigInt(Math.round(parseFloat(depositAmount || "0") * 1_000_000));
 
-  const activeTriggers = TRIGGERS.filter((t) => selectedTriggers.has(t.bps.toString()));
+  // Only include selected triggers that are also priceable by the oracle (fair price >= 1% notional)
+  const activeTriggers = TRIGGERS.filter(
+    (t) => selectedTriggers.has(t.bps.toString()) && isTriggerViable(t.bps)
+  );
 
   const oracleTick = oracleOption ? BigInt(oracleOption.tick_size) : undefined;
   const oracleMin  = oracleOption ? BigInt(oracleOption.min_strike) : undefined;
+
+  // Minimum ask price enforced by pricing_config on-chain (1% of notional).
+  // Options whose fair price is below this threshold get rejected with abort code 1.
+  const MIN_ASK_FRACTION = 0.01; // 1%
+
+  function getFairFraction(bps: bigint): number {
+    if (!sviParams || forwardRaw === 0n || !oracleOption || coverRaw === 0n) return 0;
+    const strike = computeStrike(spotRaw, bps, oracleTick, oracleMin);
+    const fair = computeFairPremium(sviParams, forwardRaw, strike, oracleOption.expiry, coverRaw);
+    return Number(fair) / Number(coverRaw);
+  }
+
+  function isTriggerViable(bps: bigint): boolean {
+    if (!sviParams) return true; // optimistic before SVI loads
+    return getFairFraction(bps) >= MIN_ASK_FRACTION;
+  }
 
   function getMaxPremium(bps: bigint): bigint {
     if (sviParams && forwardRaw > 0n && oracleOption) {
@@ -545,21 +582,26 @@ export function CoverForm({ address, suggestedCover }: Props) {
               </label>
               <div className="flex gap-2">
                 {TRIGGERS.map((t) => {
-                  const isOn   = selectedTriggers.has(t.bps.toString());
-                  const strike = spotRaw > 0n ? computeStrike(spotRaw, t.bps, oracleTick, oracleMin) : null;
+                  const isOn     = selectedTriggers.has(t.bps.toString());
+                  const viable   = isTriggerViable(t.bps);
+                  const strike   = spotRaw > 0n ? computeStrike(spotRaw, t.bps, oracleTick, oracleMin) : null;
                   return (
                     <button
                       key={t.bps.toString()}
-                      onClick={() => toggleTrigger(t.bps)}
+                      onClick={() => viable && toggleTrigger(t.bps)}
+                      disabled={!viable}
+                      title={!viable ? "Too deep OTM for this oracle's remaining time — try a shorter drop or longer expiry" : undefined}
                       className={`flex-1 rounded-lg py-2.5 text-sm font-medium border transition-colors ${
-                        isOn
+                        !viable
+                          ? "border-white/5 bg-white/3 text-gray-600 cursor-not-allowed opacity-40"
+                          : isOn
                           ? "bg-blue-600 border-blue-500 text-white"
                           : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
                       }`}
                     >
                       <div>{t.label}</div>
-                      <div className={`text-xs mt-0.5 ${isOn ? "text-blue-200" : "text-gray-600"}`}>
-                        {strike ? formatUsd(strike) : t.desc}
+                      <div className={`text-xs mt-0.5 ${!viable ? "text-gray-700" : isOn ? "text-blue-200" : "text-gray-600"}`}>
+                        {!viable ? "out of range" : strike ? formatUsd(strike) : t.desc}
                       </div>
                     </button>
                   );

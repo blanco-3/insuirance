@@ -39,7 +39,15 @@ export interface OracleInfo {
   status: "active" | "settled" | string;
   settlement_price: string | null;
   min_strike: number;
+  max_strike: number;
   tick_size: number;
+}
+
+/** Extended result from on-chain oracle RPC fetch */
+export interface OracleSVIResult {
+  svi: SVIParams;
+  maxStrike: bigint;
+  active: boolean;
 }
 
 export interface ManagerPosition {
@@ -72,7 +80,8 @@ function normalizeOracle(raw: any): OracleInfo {
     expiry: Number(raw.expiry),
     status: raw.status,
     settlement_price: raw.settlement_price ?? null,
-    min_strike: Number(raw.min_strike),
+    min_strike: Number(raw.min_strike ?? 0),
+    max_strike: Number(raw.max_strike ?? 0),
     tick_size: Number(raw.tick_size),
   };
 }
@@ -112,13 +121,17 @@ export async function getManagerPositions(managerId: string): Promise<ManagerPos
 }
 
 /**
- * Fetch SVI params directly from the on-chain oracle object via Sui RPC.
+ * Fetch SVI params and oracle state directly from the on-chain oracle object via Sui RPC.
  * This is authoritative — the indexer API lags and can serve stale params
  * that differ from what the contract actually uses, causing pricing_config
  * abort code 1 failures when our client-side viability check is based on
  * outdated values.
+ *
+ * Also returns `active` (false when oracle has settled) and `maxStrike` (upper
+ * bound of the oracle's supported strike grid) so callers can reject strikes that
+ * would abort on-chain before even submitting.
  */
-export async function getOracleSVI(oracleId: string): Promise<SVIParams> {
+export async function getOracleSVI(oracleId: string): Promise<OracleSVIResult> {
   const SUI_RPC = "https://fullnode.testnet.sui.io:443";
   const res = await fetch(SUI_RPC, {
     method: "POST",
@@ -132,14 +145,22 @@ export async function getOracleSVI(oracleId: string): Promise<SVIParams> {
   });
   if (!res.ok) throw new Error(`RPC error: ${res.status}`);
   const data = await res.json();
-  const svi = data?.result?.data?.content?.fields?.svi?.fields;
+  const fields = data?.result?.data?.content?.fields;
+  const svi = fields?.svi?.fields;
   if (!svi) throw new Error("No SVI data in oracle object");
-  return {
+
+  const sviParams: SVIParams = {
     a:     Number(svi.a)     / 1e9,
     b:     Number(svi.b)     / 1e9,
     rho:   Number(svi.rho.fields.magnitude) / 1e9 * (svi.rho.fields.is_negative ? -1 : 1),
     m:     Number(svi.m.fields.magnitude)   / 1e9 * (svi.m.fields.is_negative   ? -1 : 1),
     sigma: Number(svi.sigma) / 1e9,
+  };
+
+  return {
+    svi: sviParams,
+    maxStrike: fields?.max_strike ? BigInt(fields.max_strike) : 0n,
+    active: Boolean(fields?.active),
   };
 }
 
@@ -201,6 +222,46 @@ export function computeStrike(spotRaw: bigint, dropBps: bigint, tickSize?: bigin
   const raw  = (spotRaw * (10_000n - dropBps)) / 10_000n;
   const strike = (raw / tick) * tick;
   return strike < min ? min : strike;
+}
+
+/**
+ * Binary-search the maximum drop in bps where the on-chain pricing check passes.
+ * On-chain invariant: assert!(up_price > 0 && up_price < 1_000_000_000).
+ * Fails when Math.round(normCDF(d2) * 1e9) >= 1e9 (UP option probability saturates).
+ */
+export function computeMaxViableBps(
+  params: SVIParams,
+  forwardRaw: bigint,
+  spotRaw: bigint,
+  expiryMs: number,
+  tickSize?: bigint,
+  minStrike?: bigint,
+): number {
+  const FLOAT_SCALING = 1_000_000_000;
+
+  function upFixed(bps: number): number {
+    const strikeRaw = computeStrike(spotRaw, BigInt(bps), tickSize, minStrike);
+    const T = (expiryMs - Date.now()) / (365.25 * 24 * 3600 * 1000);
+    if (T <= 0) return FLOAT_SCALING;
+    const k = Math.log(Number(strikeRaw) / Number(forwardRaw));
+    const { a, b, rho, m, sigma } = params;
+    const w = a + b * (rho * (k - m) + Math.sqrt((k - m) ** 2 + sigma ** 2));
+    if (w <= 0) return FLOAT_SCALING;
+    const d2 = -k / Math.sqrt(w) - Math.sqrt(w) / 2;
+    return Math.round(normCDF(d2) * FLOAT_SCALING);
+  }
+
+  const LO = 10, HI = 5000;
+  if (upFixed(LO) >= FLOAT_SCALING) return 0;  // even smallest bps fails
+  if (upFixed(HI) < FLOAT_SCALING) return HI;  // all bps pass
+
+  let lo = LO, hi = HI;
+  while (lo < hi - 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (upFixed(mid) < FLOAT_SCALING) lo = mid;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /** Display: oracle units → USD string */

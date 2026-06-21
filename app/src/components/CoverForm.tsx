@@ -18,6 +18,7 @@ import {
   getActiveOracles,
   getOracleSVI,
   computeFairPremium,
+  computeMaxViableBps,
   getVaultSummary,
   type OracleInfo,
   type OraclePrice,
@@ -38,19 +39,17 @@ const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 // MUST be module-level (not inside component) to avoid TDZ in hoisted function declarations.
 // isTriggerViable() (function decl, hoisted) references MIN_ASK_FRACTION before its const line.
 const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
-const MIN_ASK_FRACTION = 0.02; // 2% — minimum viable fair premium fraction
+const MIN_ASK_FRACTION = 0.001; // 0.1% — minimum viable fair premium fraction (lowered to unlock 2-8% drops)
 
-const TRIGGERS = [
-  { label: "0.5%", bps: 50n,  desc: "Mild dip" },
-  { label: "1%",   bps: 100n, desc: "Correction" },
-  { label: "2%",   bps: 200n, desc: "Crash" },
-];
+// Slider range: 10 bps (0.1%) to 5000 bps (50% absolute cap), actual max set dynamically
+const SLIDER_MIN_BPS = 10;
+const SLIDER_MAX_BPS = 5000;
+const SLIDER_STEP    = 10;
 
-const STRATEGIES: { label: string; sub: string; bpsSet: bigint[]; color: string }[] = [
-  { label: "Conservative", sub: "0.5% drop",  bpsSet: [50n],           color: "sky" },
-  { label: "Balanced",     sub: "1% drop",    bpsSet: [100n],          color: "violet" },
-  { label: "Crash",        sub: "2% drop",    bpsSet: [200n],          color: "rose" },
-  { label: "Full Ladder",  sub: "All levels", bpsSet: [50n, 100n, 200n], color: "emerald" },
+const STRATEGIES: { label: string; sub: string; bps: number; color: string }[] = [
+  { label: "Conservative", sub: "1% drop",  bps: 100,  color: "sky" },
+  { label: "Balanced",     sub: "5% drop",  bps: 500,  color: "violet" },
+  { label: "Black Swan",   sub: "20% drop", bps: 2000, color: "rose" },
 ];
 
 const COLOR_MAP: Record<string, { active: string }> = {
@@ -82,13 +81,12 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
   const [sviParams, setSviParams]       = useState<SVIParams | null>(null);
   const [oracleMaxStrike, setOracleMaxStrike] = useState<bigint>(0n);
   const [oracleSettled, setOracleSettled]     = useState(false);
+  const [maxViableBps, setMaxViableBps]       = useState<number>(2000); // dynamic max from SVI binary search
 
-  // Form state
-  const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(
-    suggestedCover ? new Set(["50", "100", "200"]) : new Set(["100"])
-  );
+  // Form state — single drop threshold slider (in bps, 10=0.1% … 2000=20%)
+  const [dropBps, setDropBps]         = useState<number>(suggestedCover ? 500 : 100);
   const [activeStrategy, setActiveStrategy] = useState<string | null>(
-    suggestedCover ? "Full Ladder" : "Balanced"
+    suggestedCover ? "Balanced" : "Conservative"
   );
   const [oracleOption, setOracleOption] = useState<OracleInfo | null>(null);
   const [coverAmount, setCoverAmount]   = useState(suggestedCover ?? "5");
@@ -173,31 +171,12 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     if (!suggestedCover) return;
     setCoverAmount(suggestedCover);
     setDepositAmount(suggestedCover);
-    setActiveStrategy("Full Ladder");
-    setSelectedTriggers(new Set(["50", "100", "200"]));
+    setActiveStrategy("Balanced");
+    setDropBps(500);
     setView("buy");
   }, [suggestedCover]);
 
-  // Auto-deselect triggers that become unviable when oracle/SVI/price changes.
-  // Must wait for BOTH sviParams AND price (forwardRaw) before filtering —
-  // if price hasn't loaded yet forwardRaw===0n and every trigger looks unviable,
-  // which would clear selectedTriggers with no recovery.
-  useEffect(() => {
-    if (!sviParams || forwardRaw === 0n) return;
-    setSelectedTriggers((prev) => {
-      const next = new Set<string>();
-      for (const key of prev) {
-        if (isTriggerViable(BigInt(key))) next.add(key);
-      }
-      // Always keep at least one selected; fallback to smallest viable
-      if (next.size === 0) {
-        const viable = TRIGGERS.find((t) => isTriggerViable(t.bps));
-        if (viable) next.add(viable.bps.toString());
-      }
-      return next;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sviParams, oracleOption?.id, price]);
+  // (slider-based: no auto-deselect needed)
 
   useEffect(() => {
     const dedup = (list: OracleInfo[]): OracleInfo[] => {
@@ -217,10 +196,11 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
         const list = await getActiveOracles();
         const fresh = dedup(list);
         setOracles(fresh);
-        // If selected oracle has expired or isn't in the new list, auto-advance
+        // If selected oracle has expired or isn't in the new list, auto-advance.
+        // Prefer LONGEST expiry as default — more time = wider viable strike range.
         setOracleOption((prev) => {
-          const safeFallback =
-            fresh.find((o) => o.expiry - Date.now() >= SAFE_TTL_MS) ?? fresh[0] ?? null;
+          const safeOracles = fresh.filter((o) => o.expiry - Date.now() >= SAFE_TTL_MS);
+          const safeFallback = safeOracles[safeOracles.length - 1] ?? fresh[fresh.length - 1] ?? null;
           if (!prev) return safeFallback;
           const still = fresh.find((o) => o.id === prev.id);
           return still ?? safeFallback;
@@ -286,20 +266,26 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
       .catch(() => {});
   }, [oracleOption?.id]);
 
-  function toggleTrigger(bps: bigint) {
-    const key = bps.toString();
-    setActiveStrategy(null);
-    setSelectedTriggers((prev) => {
-      const next = new Set(prev);
-      if (next.has(key) && next.size > 1) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  // Recompute max viable bps whenever SVI params or price change (oracle-specific constraint)
+  useEffect(() => {
+    if (!sviParams || !price || !oracleOption) return;
+    const fwd  = BigInt(price.forward);
+    const spot = BigInt(price.spot);
+    if (fwd === 0n || spot === 0n) return;
+    const tick = BigInt(oracleOption.tick_size);
+    const min  = BigInt(oracleOption.min_strike);
+    const max  = computeMaxViableBps(sviParams, fwd, spot, oracleOption.expiry, tick, min);
+    setMaxViableBps(max > SLIDER_MIN_BPS ? Math.min(max, SLIDER_MAX_BPS) : 2000);
+  }, [sviParams, price, oracleOption]);
+
+  // Cap current slider value if oracle max shrinks below it
+  useEffect(() => {
+    if (dropBps > maxViableBps) setDropBps(maxViableBps);
+  }, [maxViableBps]);
 
   function applyStrategy(s: typeof STRATEGIES[number]) {
     setActiveStrategy(s.label);
-    setSelectedTriggers(new Set(s.bpsSet.map((b) => b.toString())));
+    setDropBps(Math.min(s.bps, maxViableBps));
   }
 
   const spotRaw    = price ? BigInt(price.spot)    : 0n;
@@ -329,10 +315,11 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     return true;
   };
 
-  // Only include selected triggers that are also priceable by the oracle
-  const activeTriggers = TRIGGERS.filter(
-    (t) => selectedTriggers.has(t.bps.toString()) && isTriggerViable(t.bps)
-  );
+  // Single trigger from slider
+  const dropBigint = BigInt(dropBps);
+  const activeTriggers = isTriggerViable(dropBigint)
+    ? [{ label: `${(dropBps / 100).toFixed(1).replace(/\.0$/, "")}%`, bps: dropBigint, desc: "" }]
+    : [];
 
   const getMaxPremium = (bps: bigint): bigint => {
     if (sviParams && forwardRaw > 0n && oracleOption) {
@@ -743,7 +730,7 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
             {/* Strategy presets */}
             <div className="space-y-2">
               <label className="text-sm text-gray-400">Strategy</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {STRATEGIES.map((s) => {
                   const isActive = activeStrategy === s.label;
                   return (
@@ -764,41 +751,58 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
               </div>
             </div>
 
-            {/* Custom trigger toggles */}
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">
-                Coverage Triggers
-                <span className="ml-2 text-xs text-gray-600">
-                  {selectedTriggers.size > 1 ? `(${selectedTriggers.size} active)` : "· tap to add more"}
+            {/* Drop threshold slider */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Coverage Trigger</label>
+                <span className="text-sm font-semibold text-white">
+                  ≥{(dropBps / 100).toFixed(1).replace(/\.0$/, "")}% drop
                 </span>
-              </label>
-              <div className="flex gap-2">
-                {TRIGGERS.map((t) => {
-                  const isOn     = selectedTriggers.has(t.bps.toString());
-                  const viable   = isTriggerViable(t.bps);
-                  const strike   = spotRaw > 0n ? computeStrike(spotRaw, t.bps, oracleTick, oracleMin) : null;
-                  return (
-                    <button
-                      key={t.bps.toString()}
-                      onClick={() => viable && toggleTrigger(t.bps)}
-                      disabled={!viable}
-                      title={!viable ? "Too deep OTM for this oracle's remaining time — try a shorter drop or longer expiry" : undefined}
-                      className={`flex-1 rounded-lg py-2.5 text-sm font-medium border transition-colors ${
-                        !viable
-                          ? "border-white/5 bg-white/3 text-gray-600 cursor-not-allowed opacity-40"
-                          : isOn
-                          ? "bg-blue-600 border-blue-500 text-white"
-                          : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
-                      }`}
-                    >
-                      <div>{t.label}</div>
-                      <div className={`text-xs mt-0.5 ${!viable ? "text-gray-700" : isOn ? "text-blue-200" : "text-gray-600"}`}>
-                        {!viable ? "out of range" : strike ? formatUsd(strike) : t.desc}
-                      </div>
-                    </button>
-                  );
-                })}
               </div>
+
+              {/* Slider */}
+              <div className="relative">
+                <input
+                  type="range"
+                  min={SLIDER_MIN_BPS}
+                  max={maxViableBps}
+                  step={SLIDER_STEP}
+                  value={dropBps}
+                  onChange={(e) => {
+                    setDropBps(Number(e.target.value));
+                    setActiveStrategy(null);
+                  }}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((dropBps - SLIDER_MIN_BPS) / (maxViableBps - SLIDER_MIN_BPS)) * 100}%, rgba(255,255,255,0.1) ${((dropBps - SLIDER_MIN_BPS) / (maxViableBps - SLIDER_MIN_BPS)) * 100}%, rgba(255,255,255,0.1) 100%)`,
+                  }}
+                />
+                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <span>0.1%</span>
+                  <span>{(maxViableBps / 400).toFixed(0)}%</span>
+                  <span>{(maxViableBps / 200).toFixed(0)}%</span>
+                  <span>{(maxViableBps / 100).toFixed(0)}% max</span>
+                </div>
+              </div>
+
+              {/* Strike price display */}
+              {spotRaw > 0n && (
+                <div className="flex items-center justify-between text-xs rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+                  <span className="text-gray-400">Trigger price</span>
+                  <span className="font-mono text-white">
+                    {formatUsd(computeStrike(spotRaw, dropBigint, oracleTick, oracleMin))} or below
+                  </span>
+                </div>
+              )}
+
+              {/* Oracle coverage range note */}
+              <p className="text-xs text-gray-600">
+                {sviParams
+                  ? maxViableBps >= 500
+                    ? `Up to ${(maxViableBps / 100).toFixed(0)}% drop supported with the selected oracle.`
+                    : `Max viable drop: ${(maxViableBps / 100).toFixed(1)}% (testnet oracle SVI constraint — select a longer expiry for wider coverage).`
+                  : "Loading oracle pricing…"}
+              </p>
             </div>
 
             {/* Expiry — horizontal timeline + sparkline */}

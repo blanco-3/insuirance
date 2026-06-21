@@ -31,6 +31,13 @@ const SHIELD_VAULT_ID    = process.env.NEXT_PUBLIC_SHIELD_VAULT_ID ?? "";
 const CLOCK_ID = "0x6";
 const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 
+// Minimum time-to-expiry for an oracle to be selectable.
+// DeepBook pricing_config::quote_spread_from_fair_price aborts (code 1) when
+// T is too short for SVI to produce a valid spread. 2 h gives a comfortable
+// buffer above the observed ~1 h failure threshold.
+// MUST be module-level (not inside useEffect) to avoid TDZ in hoisted function declarations.
+const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
+
 const TRIGGERS = [
   { label: "0.5%", bps: 50n,  desc: "Mild dip" },
   { label: "1%",   bps: 100n, desc: "Correction" },
@@ -183,11 +190,6 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }, [sviParams, oracleOption?.id, price]);
 
   useEffect(() => {
-    // DeepBook pricing_config::quote_spread_from_fair_price aborts (code 1) when
-    // time-to-expiry is too short for SVI to produce a valid spread.
-    // 2 h gives a comfortable buffer above the observed ~1 h failure threshold.
-    const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
-
     function dedup(list: OracleInfo[]): OracleInfo[] {
       // Filter client-side too (guards against stale API cache)
       const now = Date.now();
@@ -261,7 +263,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
     setPrice(null);
     setSviParams(null);
     getOracleSVI(oracleOption.id)
-      .then(setSviParams)
+      .then((params) => {
+        // Reject any params with NaN/Infinity — would cause BigInt(NaN) crash in render
+        if (Object.values(params).every(Number.isFinite)) setSviParams(params);
+      })
       .catch(() => {});
   }, [oracleOption?.id]);
 

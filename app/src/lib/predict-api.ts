@@ -181,7 +181,10 @@ export function computeFairPremium(
   const d2 = -k / Math.sqrt(w) - Math.sqrt(w) / 2;
   const prob = normCDF(-d2);
 
-  const fair = BigInt(Math.round(prob * Number(quantityRaw)));
+  const fairNum = Math.round(prob * Number(quantityRaw));
+  // Guard against NaN/Infinity (e.g. degenerate SVI params) — avoids BigInt(NaN) throw in render
+  if (!Number.isFinite(fairNum) || fairNum < 0) return 0n;
+  const fair = BigInt(fairNum);
 
   // Minimum premium floor: 0.1% of cover notional.
   // Prevents max_premium = 0 on very short-dated oracles (T < 1 hour), which

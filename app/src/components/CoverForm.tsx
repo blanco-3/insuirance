@@ -183,12 +183,17 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }, [sviParams, oracleOption?.id, price]);
 
   useEffect(() => {
+    // DeepBook pricing_config::quote_spread_from_fair_price aborts (code 1) when
+    // time-to-expiry is too short for SVI to produce a valid spread.
+    // 2 h gives a comfortable buffer above the observed ~1 h failure threshold.
+    const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
+
     function dedup(list: OracleInfo[]): OracleInfo[] {
       // Filter client-side too (guards against stale API cache)
       const now = Date.now();
       const seen = new Set<number>();
       return list.filter((o) => {
-        if (o.expiry <= now) return false;
+        if (o.expiry - now < SAFE_TTL_MS) return false; // too close to expiry — pricing would abort
         if (seen.has(o.expiry)) return false;
         seen.add(o.expiry);
         return true;
@@ -202,10 +207,8 @@ export function CoverForm({ address, suggestedCover }: Props) {
         setOracles(fresh);
         // If selected oracle has expired or isn't in the new list, auto-advance
         setOracleOption((prev) => {
-          // Prefer oracles with at least 60 min TTL so options have meaningful probability
-          const MIN_TTL_MS = 60 * 60 * 1000;
           const safeFallback =
-            fresh.find((o) => o.expiry - Date.now() >= MIN_TTL_MS) ?? fresh[0] ?? null;
+            fresh.find((o) => o.expiry - Date.now() >= SAFE_TTL_MS) ?? fresh[0] ?? null;
           if (!prev) return safeFallback;
           const still = fresh.find((o) => o.id === prev.id);
           return still ?? safeFallback;
@@ -824,6 +827,10 @@ export function CoverForm({ address, suggestedCover }: Props) {
               : "Buy Cover"}
           </button>
         )}
+
+        <p className="text-xs text-amber-600/60 text-center">
+          Policies are non-cancellable. Premiums are final upon purchase.
+        </p>
 
         <p className="text-xs text-gray-600 text-center">
           Powered by DeepBook Predict · Sui Testnet

@@ -35,8 +35,10 @@ const MANAGER_KEY = (addr: string) => `managerId_${addr}`;
 // DeepBook pricing_config::quote_spread_from_fair_price aborts (code 1) when
 // T is too short for SVI to produce a valid spread. 2 h gives a comfortable
 // buffer above the observed ~1 h failure threshold.
-// MUST be module-level (not inside useEffect) to avoid TDZ in hoisted function declarations.
+// MUST be module-level (not inside component) to avoid TDZ in hoisted function declarations.
+// isTriggerViable() (function decl, hoisted) references MIN_ASK_FRACTION before its const line.
 const SAFE_TTL_MS = 2 * 60 * 60 * 1000;
+const MIN_ASK_FRACTION = 0.02; // 2% — minimum viable fair premium fraction
 
 const TRIGGERS = [
   { label: "0.5%", bps: 50n,  desc: "Mild dip" },
@@ -190,7 +192,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
   }, [sviParams, oracleOption?.id, price]);
 
   useEffect(() => {
-    function dedup(list: OracleInfo[]): OracleInfo[] {
+    const dedup = (list: OracleInfo[]): OracleInfo[] => {
       // Filter client-side too (guards against stale API cache)
       const now = Date.now();
       const seen = new Set<number>();
@@ -200,9 +202,9 @@ export function CoverForm({ address, suggestedCover }: Props) {
         seen.add(o.expiry);
         return true;
       });
-    }
+    };
 
-    async function fetchOracles() {
+    const fetchOracles = async () => {
       try {
         const list = await getActiveOracles();
         const fresh = dedup(list);
@@ -298,11 +300,6 @@ export function CoverForm({ address, suggestedCover }: Props) {
 
   const oracleTick = oracleOption ? BigInt(oracleOption.tick_size) : undefined;
   const oracleMin  = oracleOption ? BigInt(oracleOption.min_strike) : undefined;
-
-  // On-chain min_ask_price = 1% of notional. We use 2× that (2%) as our client-side
-  // threshold to absorb SVI parameter updates that happen between our check and the
-  // wallet's own dry-run. This prevents the pricing_config abort code 1 race condition.
-  const MIN_ASK_FRACTION = 0.02; // 2%
 
   function getFairFraction(bps: bigint): number {
     if (!sviParams || forwardRaw === 0n || !oracleOption || coverRaw === 0n) return 0;

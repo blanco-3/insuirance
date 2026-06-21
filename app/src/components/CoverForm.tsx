@@ -161,9 +161,12 @@ export function CoverForm({ address, suggestedCover }: Props) {
     setView("buy");
   }, [suggestedCover]);
 
-  // Auto-deselect triggers that become unviable when oracle/SVI changes
+  // Auto-deselect triggers that become unviable when oracle/SVI/price changes.
+  // Must wait for BOTH sviParams AND price (forwardRaw) before filtering —
+  // if price hasn't loaded yet forwardRaw===0n and every trigger looks unviable,
+  // which would clear selectedTriggers with no recovery.
   useEffect(() => {
-    if (!sviParams) return;
+    if (!sviParams || forwardRaw === 0n) return;
     setSelectedTriggers((prev) => {
       const next = new Set<string>();
       for (const key of prev) {
@@ -177,7 +180,7 @@ export function CoverForm({ address, suggestedCover }: Props) {
       return next;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sviParams, oracleOption?.id]);
+  }, [sviParams, oracleOption?.id, price]);
 
   useEffect(() => {
     function dedup(list: OracleInfo[]): OracleInfo[] {

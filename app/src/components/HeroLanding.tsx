@@ -360,7 +360,7 @@ export function HeroLanding({ onLaunchApp }: Props) {
         </div>
       </section>
 
-      {/* ── Revenue model ─────────────────────────────────────────────── */}
+      {/* ── How value flows ───────────────────────────────────────────── */}
       <section style={{ padding: "0 24px 96px", position: "relative", zIndex: 1 }}>
         <div className="mx-auto" style={{ maxWidth: 820 }}>
           {/* Section header */}
@@ -369,33 +369,33 @@ export function HeroLanding({ onLaunchApp }: Props) {
             style={{ background: "rgba(4,18,36,.7)", border: "1px solid rgba(42,212,255,.12)" }}
           >
             <p className="font-mono text-xs tracking-[0.32em] uppercase mb-3" style={{ color: "#2ad4ff" }}>
-              [ REVENUE MODEL ]
+              [ VALUE FLOW ]
             </p>
             <h2 style={{ fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, letterSpacing: "-0.025em", marginBottom: 12 }}>
-              A protocol built to earn.
+              Fair pricing. Real yield.
             </h2>
             <p style={{ color: "rgba(184,222,250,.58)", fontSize: 15, lineHeight: 1.65, maxWidth: 560 }}>
-              Each interaction generates protocol revenue. Cover purchases, vault deposits, and
-              oracle settlements all contribute — with no reliance on token emissions.
+              Buyers pay the SVI fair market price — no hidden markup. Premiums flow directly
+              to ShieldVault LPs via DeepBook&apos;s PLP vault. Yield without token emissions.
             </p>
           </div>
 
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" }}>
             {[
               {
-                num:   "15%",
-                label: "Premium Spread",
-                desc:  "Every policy is priced at 115% of DeepBook's SVI fair value. The spread flows to the protocol on each mint — immediate, predictable, tied to volume.",
+                num:   "LP",
+                label: "Premium Yield",
+                desc:  "Premiums paid by cover buyers flow directly to ShieldVault depositors via DeepBook's PLP vault. No protocol spread, no extraction — real yield from real coverage demand.",
               },
               {
                 num:   "∞",
                 label: "Compounding Vault Yield",
-                desc:  "ShieldVault LPs earn premiums from every options buyer. As TVL grows, total premium income scales. Depositors compound; protocol fee-shares alongside them.",
+                desc:  "ShieldVault LPs earn premiums from every options buyer. As TVL grows, total premium income scales — depositors compound automatically with zero active management.",
               },
               {
                 num:   "×N",
                 label: "Multi-Market Expansion",
-                desc:  "The architecture is oracle-agnostic. Any asset with a DeepBook oracle is a new revenue market — ETH, SOL, indexes — with zero additional infrastructure code.",
+                desc:  "The architecture is oracle-agnostic. Any asset with a DeepBook oracle is a new market — ETH, SOL, indexes — with zero additional infrastructure code.",
               },
             ].map((r) => (
               <div

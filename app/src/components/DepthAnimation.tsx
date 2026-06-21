@@ -254,7 +254,7 @@ export function DepthAnimation({ type, onDone }: Props) {
     // t=3500: reach the deep
     push(() => {
       setPhase("deep");
-      setDiverTop(70);
+      setDiverTop(48);
       setDiverAngle(0);
       intTargetRef.current = 0;
       setBgDark(true);
@@ -395,14 +395,14 @@ export function DepthAnimation({ type, onDone }: Props) {
         />
       ))}
 
-      {/* ── Status message — upper water column at top:28% ─────────── */}
+      {/* ── Status message — anchored above the diver ───────────────── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
         style={{
-          top: "28%",
+          top: `${Math.max(diverTop - 13, 5)}%`,
           opacity: showMsg ? 1 : 0,
           transform: showMsg ? "translateY(0)" : "translateY(18px)",
-          transition: "opacity 900ms ease, transform 900ms ease",
+          transition: "opacity 900ms ease, transform 900ms ease, top 2700ms cubic-bezier(0.3,0,0.25,1)",
         }}
       >
         <div className="flex items-center gap-5">
@@ -422,13 +422,13 @@ export function DepthAnimation({ type, onDone }: Props) {
         </div>
       </div>
 
-      {/* ── Dismiss button + hint (revealed once canDismiss) ───────── */}
+      {/* ── Dismiss button + hint — anchored below the diver ─────────── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-3"
         style={{
-          top: "38%",
+          top: `${Math.min(diverTop + 12, 85)}%`,
           opacity: canDismiss ? 1 : 0,
-          transition: "opacity 700ms ease",
+          transition: "opacity 700ms ease, top 2700ms cubic-bezier(0.3,0,0.25,1)",
           pointerEvents: canDismiss ? "auto" : "none",
         }}
         onClick={(e) => e.stopPropagation()}

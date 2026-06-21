@@ -254,7 +254,7 @@ export function DepthAnimation({ type, onDone }: Props) {
     // t=3500: reach the deep
     push(() => {
       setPhase("deep");
-      setDiverTop(48);
+      setDiverTop(62);
       setDiverAngle(0);
       intTargetRef.current = 0;
       setBgDark(true);
@@ -396,11 +396,11 @@ export function DepthAnimation({ type, onDone }: Props) {
       </div>
 
       {/* ── Message — pinned just above diver's final resting spot ── */}
-      {/* diver final top=48%, diver height≈82px → bottom of msg = 48vh - 12px */}
+      {/* diver final top=62%, diver height≈82px → bottom of msg = 38vh - 12px */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
         style={{
-          bottom: "calc(52% + 12px)",
+          bottom: "calc(38% + 12px)",
           opacity: showMsg ? 1 : 0,
           transform: showMsg ? "translateY(0)" : "translateY(10px)",
           transition: "opacity 900ms ease, transform 900ms ease",
@@ -424,11 +424,11 @@ export function DepthAnimation({ type, onDone }: Props) {
       </div>
 
       {/* ── Button — pinned just below diver's final resting spot ─── */}
-      {/* diver top=48%, diver height≈82px → top of btn = 48vh + 82px + 10px */}
+      {/* diver top=62%, diver height≈82px → top of btn = 62vh + 82px + 10px */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center gap-2"
         style={{
-          top: "calc(48% + 92px)",
+          top: "calc(62% + 92px)",
           opacity: canDismiss ? 1 : 0,
           transition: "opacity 700ms ease",
           pointerEvents: canDismiss ? "auto" : "none",

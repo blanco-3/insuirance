@@ -264,6 +264,37 @@ export function computeMaxViableBps(
   return lo;
 }
 
+/**
+ * Find the highest drop% (in bps) where computeStrike still returns a value
+ * strictly above min_strike. Beyond this point the premium stops changing
+ * (all strikes are clamped to the floor), so the slider should not go further.
+ */
+export function computeMaxUnclampedBps(
+  spotRaw: bigint,
+  tickSize?: bigint,
+  minStrike?: bigint,
+): number {
+  const tick = tickSize ?? TICK_SIZE;
+  const min  = minStrike ?? MIN_STRIKE;
+  if (min <= 0n || spotRaw <= 0n) return 5000; // no meaningful floor
+
+  // Binary search: highest bps where strike > min_strike
+  let lo = 10, hi = 5000;
+  const strikeAt = (bps: number) => {
+    const raw    = (spotRaw * BigInt(10_000 - bps)) / 10_000n;
+    const strike = (raw / tick) * tick;
+    return strike > min ? strike : min;
+  };
+  if (strikeAt(lo) <= min) return 0;    // even 0.1% drop hits the floor
+  if (strikeAt(hi) > min)  return hi;   // 50% still above floor
+
+  while (lo < hi - 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (strikeAt(mid) > min) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
 /** Display: oracle units → USD string */
 export function formatUsd(raw: bigint | string | number): string {
   const n = BigInt(raw);

@@ -17,6 +17,10 @@ import { parseError } from "@/lib/parseError";
 
 const INSUIRANCE_PACKAGE = process.env.NEXT_PUBLIC_INSUIRANCE_PACKAGE ?? "";
 const CLOCK_ID = "0x6";
+// Policy NFTs are branded with the original package address (immutable after creation).
+// INSUIRANCE_PACKAGE may point to an upgraded package, so getOwnedObjects filter
+// must use the original package that created the Policy type.
+const POLICY_PKG = "0xeb6d56e69e5687ab1a35d05b079a51886539ddd625ba0764e562119ed40c05c4";
 
 const STATUS_LABEL: Record<number, string> = {
   0: "Active",
@@ -61,7 +65,7 @@ export function PolicyList({ address }: Props) {
     "getOwnedObjects",
     {
       owner: address,
-      filter: { StructType: `${INSUIRANCE_PACKAGE}::policy::Policy` },
+      filter: { StructType: `${POLICY_PKG}::policy::Policy` },
       options: { showContent: true },
     },
     { enabled: !!INSUIRANCE_PACKAGE, refetchInterval: 20_000 }
@@ -104,17 +108,16 @@ export function PolicyList({ address }: Props) {
   }, [oracles]);
 
   const policies = data?.data ?? [];
-  if (!isLoading && policies.length === 0) return null;
 
-  function getOracleInfo(oracleId: string): OracleInfo | undefined {
+  const getOracleInfo = (oracleId: string): OracleInfo | undefined => {
     return oracles.find((o) => o.id === oracleId || o.id === normalizeId(oracleId));
-  }
+  };
 
-  async function handleClaim(
+  const handleClaim = async (
     policyId: string,
     managerId: string,
     oracleId: string,
-  ) {
+  ) => {
     setClaimingId(policyId);
     setErrors((e) => ({ ...e, [policyId]: "" }));
     setSuccesses((s) => ({ ...s, [policyId]: "" }));
@@ -144,13 +147,27 @@ export function PolicyList({ address }: Props) {
     } finally {
       setClaimingId(null);
     }
-  }
+  };
 
   return (
     <div className="space-y-3 mt-8">
-      <h2 className="text-lg font-semibold">My Policies</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">My Policies</h2>
+        <span className="text-xs font-mono px-2 py-0.5 rounded-full" style={{ background: "rgba(42,212,255,.08)", color: "rgba(42,212,255,.6)", border: "1px solid rgba(42,212,255,.15)" }}>
+          NFT = claim right
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: "rgba(120,160,200,.4)" }}>
+        Each Policy is an NFT in your wallet. Hold it until expiry — if BTC settles at or below the strike, click Claim to receive your payout. Transferring the NFT transfers the claim right.
+      </p>
 
       {isLoading && <p className="text-sm text-gray-400">Loading policies…</p>}
+      {!isLoading && policies.length === 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-6 py-10 text-center space-y-2">
+          <p className="text-sm text-gray-400">No active policies</p>
+          <p className="text-xs text-gray-600">Buy cover to get a Policy NFT here</p>
+        </div>
+      )}
 
       {policies.map((obj) => {
         const content = obj.data?.content as any;

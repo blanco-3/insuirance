@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   useSignAndExecuteTransaction,
   useSuiClient,
@@ -19,6 +19,7 @@ import {
   getOracleSVI,
   computeFairPremium,
   computeMaxViableBps,
+  computeMaxUnclampedBps,
   getVaultSummary,
   type OracleInfo,
   type OraclePrice,
@@ -102,7 +103,9 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     asset: string; strike: bigint; expiry: number; qty: bigint; label: string;
   }>>([]);
   const [showDepthAnim, setShowDepthAnim] = useState(false);
+  const [animStartPct, setAnimStartPct]   = useState(60);
   const [validating, setValidating] = useState(false);
+  const buyBtnRef = useRef<HTMLButtonElement>(null);
 
   // Vault utilization (0–1) — used to cap new cover when pool is near-full
   const [vaultUtil, setVaultUtil] = useState<number | null>(null);
@@ -274,8 +277,13 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
     if (fwd === 0n || spot === 0n) return;
     const tick = BigInt(oracleOption.tick_size);
     const min  = BigInt(oracleOption.min_strike);
-    const max  = computeMaxViableBps(sviParams, fwd, spot, oracleOption.expiry, tick, min);
-    setMaxViableBps(max > SLIDER_MIN_BPS ? Math.min(max, SLIDER_MAX_BPS) : 2000);
+    const sviMax      = computeMaxViableBps(sviParams, fwd, spot, oracleOption.expiry, tick, min);
+    const unclampedMax = computeMaxUnclampedBps(spot, tick, min);
+    const effective   = Math.min(
+      sviMax > SLIDER_MIN_BPS ? sviMax : SLIDER_MAX_BPS,
+      unclampedMax > SLIDER_MIN_BPS ? unclampedMax : SLIDER_MAX_BPS,
+    );
+    setMaxViableBps(effective > SLIDER_MIN_BPS ? Math.min(effective, SLIDER_MAX_BPS) : 2000);
   }, [sviParams, price, oracleOption]);
 
   // Cap current slider value if oracle max shrinks below it
@@ -517,6 +525,11 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
       }));
       setPurchasedPolicies(snapshot);
       setTxDigest(result.digest);
+      // Measure buy button Y so animation starts from where user clicked
+      if (buyBtnRef.current) {
+        const rect = buyBtnRef.current.getBoundingClientRect();
+        setAnimStartPct(Math.round(((rect.top + rect.height / 2) / window.innerHeight) * 100));
+      }
       setShowDepthAnim(true);
       setManagerBalance(await fetchOnChainBalance(managerId));
     } catch (e: any) {
@@ -589,7 +602,7 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
   return (
     <>
       {showDepthAnim && (
-        <DepthAnimation type="cover" onDone={() => setShowDepthAnim(false)} />
+        <DepthAnimation type="cover" startPct={animStartPct} onDone={() => setShowDepthAnim(false)} />
       )}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
@@ -919,6 +932,7 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
         {/* Buy button */}
         {view === "buy" && (
           <button
+            ref={buyBtnRef}
             onClick={handleBuyCover}
             disabled={
               isPending ||
@@ -979,7 +993,7 @@ export function CoverForm({ address, suggestedCover, onBought }: Props) {
 // ── ExpiryTimeline ────────────────────────────────────────────────────────────
 // Horizontal scrollable card rail + premium sparkline chart above it.
 
-import { useRef, useEffect as useEffectAlias } from "react";
+import { useEffect as useEffectAlias } from "react";
 
 interface TimelineProps {
   oracles:    OracleInfo[];
@@ -1144,15 +1158,16 @@ function ExpiryTimeline({ oracles, selected, onSelect, sviParams, forwardRaw, sp
             const { label: cd, urgent } = countdown(o.expiry);
             const days  = daysLeft(o.expiry);
 
-            // Per-card max viable coverage (pure SVI math — no API call)
+            // Per-card max viable coverage: min of SVI check and min_strike clamp
+            const tick_bi = o.tick_size ? BigInt(o.tick_size) : undefined;
+            const min_bi  = o.min_strike ? BigInt(o.min_strike) : undefined;
             const oracleMaxBps = sviParams && forwardRaw > 0n && spotRaw > 0n
-              ? computeMaxViableBps(
-                  sviParams, forwardRaw, spotRaw, o.expiry,
-                  o.tick_size ? BigInt(o.tick_size) : undefined,
-                  o.min_strike ? BigInt(o.min_strike) : undefined,
+              ? Math.min(
+                  computeMaxViableBps(sviParams, forwardRaw, spotRaw, o.expiry, tick_bi, min_bi),
+                  computeMaxUnclampedBps(spotRaw, tick_bi, min_bi),
                 )
               : null;
-            const maxPct = oracleMaxBps != null
+            const maxPct = oracleMaxBps != null && oracleMaxBps > 0
               ? (oracleMaxBps / 100).toFixed(1).replace(/\.0$/, "")
               : null;
 
@@ -1204,13 +1219,13 @@ function ExpiryTimeline({ oracles, selected, onSelect, sviParams, forwardRaw, sp
                   {cd}
                 </span>
 
-                {/* Max coverage badge */}
-                {maxPct && (
+                {/* Max coverage badge — only shown on selected card (SVI params are oracle-specific) */}
+                {isSel && maxPct && (
                   <span
                     className="text-xs font-mono leading-none"
-                    style={{ color: isSel ? "#00d4ff" : "rgba(100,160,210,0.55)" }}
+                    style={{ color: "#00d4ff" }}
                   >
-                    ≤{maxPct}% drop
+                    up to {maxPct}% drop
                   </span>
                 )}
 

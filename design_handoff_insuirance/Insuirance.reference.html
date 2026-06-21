@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;color:#e8f4f8;background:#02080f;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:rgba(96,165,222,0.22);border-radius:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  input{font-family:inherit}
+  @keyframes storm-rain{0%{transform:translateY(-15px) rotate(-16deg);opacity:0}6%{opacity:1}88%{opacity:.55}100%{transform:translateY(250px) rotate(-16deg);opacity:0}}
+  @keyframes storm-flash{0%,84%,86.5%,89.5%,92%,100%{opacity:0}85%{opacity:.85}87%{opacity:.06}88%{opacity:.9}90%{opacity:.04}91%{opacity:.6}}
+  @keyframes wave-slide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  @keyframes bubble-rise{0%{transform:translateY(0) scale(1);opacity:.7}70%{opacity:.3}100%{transform:translateY(-200px) scale(.2);opacity:0}}
+  @keyframes biolum-float{0%,100%{transform:translateY(0) scale(1);opacity:.4}50%{transform:translateY(-9px) scale(1.4);opacity:1}}
+  @keyframes mascot-bob{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-10px) rotate(1.5deg)}}
+  @keyframes lure-pulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.18)}}
+  @keyframes dot-pulse{0%{box-shadow:0 0 0 0 rgba(74,224,160,.5)}70%{box-shadow:0 0 0 6px rgba(74,224,160,0)}100%{box-shadow:0 0 0 0 rgba(74,224,160,0)}}
+  @keyframes drift{0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+  @keyframes rise-in{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  @keyframes spin-slow{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  .rise{animation:rise-in .6s cubic-bezier(.22,.61,.36,1) both}
+</style>
+</helmet>
+
+<div style="position:relative;min-height:100vh;width:100%;overflow-x:hidden;background:linear-gradient(180deg,#2a6396 0%,#1d517f 6%,#143c61 14%,#0d2c49 24%,#071d33 38%,#03101e 54%,#02090f 70%,#01060d 100%);">
+
+  <!-- biolum ambient particles fixed in the deep -->
+  <div style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;">
+    <sc-for list="{{ ambient }}" as="p" hint-placeholder-count="18">
+      <span style="position:absolute;left:{{ p.x }}%;top:{{ p.y }}%;width:{{ p.size }}px;height:{{ p.size }}px;border-radius:50%;background:{{ p.color }};animation:biolum-float {{ p.dur }}s ease-in-out infinite;animation-delay:{{ p.delay }}s"></span>
+    </sc-for>
+  </div>
+
+  <!-- ═══════════════ HERO LANDING ═══════════════ -->
+  <sc-if value="{{ showHero }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Landing">
+
+    <!-- landing nav -->
+    <nav style="position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:15px 28px;border-bottom:1px solid rgba(96,165,222,0.1);background:rgba(3,11,22,0.6);backdrop-filter:blur(14px)">
+      <div style="display:flex;align-items:center;gap:11px">
+        <span style="display:flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9px;background:linear-gradient(160deg,#0b2742,#05162a);box-shadow:0 0 14px -3px rgba(42,212,255,.45),inset 0 1px 1px rgba(120,200,255,.25)">
+          <svg width="20" height="22" viewBox="0 0 28 30" fill="none">
+            <defs><linearGradient id="shg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fddff"/><stop offset=".5" stop-color="#1789c4"/><stop offset="1" stop-color="#06314e"/></linearGradient></defs>
+            <path d="M14 1 L26 5 V15 C26 23 20 27 14 29 C8 27 2 23 2 15 V5 Z" fill="url(#shg2)"/>
+            <path d="M4 12.5 Q8 9.5 14 12.5 Q20 15.5 24 12.5" stroke="#eaf9ff" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+            <circle cx="14" cy="20.5" r="4.4" fill="#bfeaff" opacity=".32"/><circle cx="14" cy="20.5" r="2.4" fill="#eaf9ff"/>
+          </svg>
+        </span>
+        <span style="font-size:18px;font-weight:600;letter-spacing:-.02em">Insuirance</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="#how" style="display:none;font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.06em;color:rgba(190,222,245,.6);text-decoration:none;padding:8px 12px">How it works</a>
+        <button onClick="{{ onLaunch }}" style="font-size:13px;font-weight:600;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);border:none;padding:9px 18px;border-radius:10px;cursor:pointer;box-shadow:0 0 18px -4px rgba(42,212,255,.6);transition:box-shadow .15s" style-hover="box-shadow:0 0 26px -2px rgba(42,212,255,.85)">Launch App →</button>
+      </div>
+    </nav>
+
+    <!-- hero -->
+    <header style="position:relative;overflow:hidden;min-height:88vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 22px 80px">
+      <!-- storm scene up top -->
+      <div style="position:absolute;left:50%;transform:translateX(-50%);top:-30px;width:170vw;max-width:1900px;height:420px;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 44%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 44%,transparent 100%)">
+        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(48,92,138,.9) 0%,rgba(40,80,124,.7) 36%,rgba(34,70,112,.4) 66%,transparent 100%)"></div>
+        <sc-for list="{{ rainStreaks }}" as="r" hint-placeholder-count="40">
+          <span style="position:absolute;top:0;left:{{ r.left }}%;width:{{ r.width }}px;height:{{ r.height }}px;opacity:{{ r.opacity }};border-radius:1px;background:rgba(165,218,255,.55);animation:storm-rain {{ r.duration }}s linear infinite;animation-delay:{{ r.delay }}s"></span>
+        </sc-for>
+        <div style="position:absolute;inset:0;background:rgba(180,220,255,.1);animation:storm-flash 5.3s ease-in-out infinite"></div>
+        <div style="position:absolute;inset:0;background:rgba(180,220,255,.08);animation:storm-flash 8.9s ease-in-out infinite;animation-delay:3.2s"></div>
+        <svg style="position:absolute;top:22px;left:26%;width:18px;height:54px;animation:storm-flash 5.3s ease-in-out infinite;filter:blur(.4px)" viewBox="0 0 18 52"><path d="M13,0 L5,24 L10,24 L2,52 L15,22 L9,22 Z" fill="rgba(215,240,255,.95)"/></svg>
+        <svg style="position:absolute;top:14px;left:71%;width:14px;height:46px;animation:storm-flash 8.9s ease-in-out infinite;animation-delay:3.2s;filter:blur(.4px)" viewBox="0 0 14 44"><path d="M10,0 L4,20 L8,20 L1,44 L12,17 L6,17 Z" fill="rgba(215,240,255,.9)"/></svg>
+        <svg style="position:absolute;left:0;bottom:96px;width:200%;height:64px" viewBox="0 0 2880 65" preserveAspectRatio="none"><path style="animation:wave-slide 10s linear infinite" d="M0,35 C240,63 480,7 720,35 C960,63 1200,7 1440,35 C1680,63 1920,7 2160,35 C2400,63 2640,7 2880,35 L2880,65 L0,65 Z" fill="rgba(14,48,98,.85)"/></svg>
+        <svg style="position:absolute;left:0;bottom:60px;width:200%;height:54px" viewBox="0 0 2880 55" preserveAspectRatio="none"><path style="animation:wave-slide 6.2s linear infinite" d="M0,28 C160,50 320,6 480,28 C640,50 800,6 960,28 C1120,50 1280,6 1440,28 C1600,50 1760,6 1920,28 C2080,50 2240,6 2400,28 C2560,50 2720,6 2880,28 L2880,55 L0,55 Z" fill="rgba(28,84,156,.78)"/></svg>
+      </div>
+
+      <!-- floating diver silhouette -->
+      <div style="position:relative;z-index:1;margin-bottom:30px;animation:mascot-bob 6s ease-in-out infinite">
+        <svg width="92" height="118" viewBox="0 0 80 100" fill="none" style="filter:drop-shadow(0 0 18px rgba(42,212,255,.6)) drop-shadow(0 0 42px rgba(42,212,255,.3))">
+          <defs><radialGradient id="dvGlowH" cx="0.42" cy="0.36" r="0.72"><stop offset="0" stop-color="#cdf6ff"/><stop offset=".5" stop-color="#37c9ef"/><stop offset="1" stop-color="#0c6e96"/></radialGradient></defs>
+          <path d="M31 79 Q23 96 18 99 Q31 90 36 85 Z" fill="#0c3550"/><path d="M49 79 Q57 96 62 99 Q49 90 44 85 Z" fill="#0c3550"/>
+          <path d="M30 62 Q18 66 16 77" stroke="#0e3a58" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M50 62 Q62 66 64 77" stroke="#0e3a58" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <path d="M28 56 Q26 80 33 88 Q40 92 47 88 Q54 80 52 56 Z" fill="#0e3a58"/>
+          <circle cx="40" cy="34" r="22" fill="#0e3a58"/><circle cx="40" cy="33" r="14" fill="url(#dvGlowH)"/>
+          <ellipse cx="34" cy="27" rx="4.6" ry="2.8" fill="rgba(235,251,255,.55)" transform="rotate(-25 34 27)"/>
+        </svg>
+      </div>
+
+      <div style="position:relative;z-index:1;max-width:780px" class="rise">
+        <p style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:rgba(42,212,255,.6);margin:0 0 20px">[ ONCHAIN CRASH COVER · BUILT ON DEEPBOOK ]</p>
+        <h1 style="font-size:62px;line-height:1.02;font-weight:600;letter-spacing:-.03em;margin:0;text-wrap:balance">Where the crash<br>can't reach you.</h1>
+        <p style="font-size:17px;color:rgba(184,222,250,.62);margin:24px auto 0;max-width:520px;line-height:1.6">BTC storms on the surface — your cover lives in the calm deep. Onchain protection, settled automatically by DeepBook Predict. No claims, no counterparty.</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:13px;margin-top:34px">
+          <button onClick="{{ onLaunch }}" style="font-size:15px;font-weight:600;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);border:none;padding:14px 28px;border-radius:12px;cursor:pointer;box-shadow:0 0 26px -4px rgba(42,212,255,.65);transition:box-shadow .15s" style-hover="box-shadow:0 0 38px -2px rgba(42,212,255,.9)">Launch App →</button>
+          <a href="#how" style="font-size:15px;font-weight:500;color:#cfe8f6;background:rgba(8,22,40,.7);border:1px solid rgba(96,165,222,.22);padding:14px 24px;border-radius:12px;cursor:pointer;text-decoration:none;transition:border-color .15s" style-hover="border-color:rgba(120,200,255,.45)">How it works</a>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:14px;margin-top:30px;padding:9px 16px;border-radius:12px;background:rgba(6,16,32,.6);border:1px solid rgba(120,160,210,.16);backdrop-filter:blur(8px)">
+          <span style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.1em;color:rgba(150,185,220,.6)">BTC/USD</span>
+          <span style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:600;color:#e8f4f8;font-variant-numeric:tabular-nums">{{ btcSpotFmt }}</span>
+          <span style="font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;color:{{ changeColor }};display:inline-flex;align-items:center;gap:3px">{{ changeArrow }} {{ btcChangeFmt }}<span style="color:rgba(150,185,220,.45);font-weight:400">24H</span></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- stats band -->
+    <div style="position:relative;z-index:2;max-width:1040px;margin:0 auto;padding:0 22px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(96,165,222,.12);border:1px solid rgba(96,165,222,.12);border-radius:16px;overflow:hidden">
+        <sc-for list="{{ heroStats }}" as="st" hint-placeholder-count="4">
+          <div style="background:rgba(5,15,28,.72);padding:24px 20px;text-align:center">
+            <div style="font-family:'Geist Mono',monospace;font-size:28px;font-weight:600;color:#e8f4f8;letter-spacing:-.01em;font-variant-numeric:tabular-nums">{{ st.value }}</div>
+            <div style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(140,185,220,.5);margin-top:7px">{{ st.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- how it works -->
+    <section id="how" style="position:relative;z-index:2;max-width:1040px;margin:96px auto 0;padding:0 22px">
+      <div style="text-align:center;margin-bottom:48px">
+        <p style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:rgba(42,212,255,.55);margin:0 0 14px">[ THE DESCENT ]</p>
+        <h2 style="font-size:38px;font-weight:600;letter-spacing:-.025em;margin:0">Three steps below the storm.</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+        <sc-for list="{{ heroSteps }}" as="st" hint-placeholder-count="3">
+          <div style="position:relative;background:rgba(6,18,34,.6);border:1px solid rgba(96,165,222,.14);border-radius:16px;padding:28px 24px 30px;transition:border-color .15s" style-hover="border-color:rgba(120,200,255,.4)">
+            <span style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;color:rgba(42,212,255,.55)">[ {{ st.n }} ]</span>
+            <h3 style="font-size:19px;font-weight:600;letter-spacing:-.01em;margin:16px 0 9px">{{ st.title }}</h3>
+            <p style="font-size:14px;color:rgba(176,212,240,.56);line-height:1.6;margin:0">{{ st.desc }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- closing CTA -->
+    <section style="position:relative;z-index:2;max-width:760px;margin:104px auto 0;padding:0 22px;text-align:center">
+      <h2 style="font-size:44px;font-weight:600;letter-spacing:-.03em;margin:0;line-height:1.08;text-wrap:balance">Ready to leave<br>the surface?</h2>
+      <p style="font-size:16px;color:rgba(184,222,250,.6);margin:20px auto 0;max-width:440px;line-height:1.6">Cover your BTC downside in minutes. Settled onchain, the moment the storm breaks.</p>
+      <button onClick="{{ onLaunch }}" style="margin-top:30px;font-size:15px;font-weight:600;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);border:none;padding:15px 32px;border-radius:12px;cursor:pointer;box-shadow:0 0 28px -4px rgba(42,212,255,.65);transition:box-shadow .15s" style-hover="box-shadow:0 0 40px -2px rgba(42,212,255,.9)">Launch App →</button>
+    </section>
+
+    <!-- landing footer -->
+    <footer style="position:relative;z-index:2;margin-top:104px;border-top:1px solid rgba(96,165,222,.1);padding:36px 28px 30px">
+      <div style="max-width:1040px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:15px;font-weight:600;letter-spacing:-.02em;color:rgba(220,240,250,.75)">Insuirance</span>
+          <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.08em;color:#7fd6ef;background:rgba(42,212,255,.1);border:1px solid rgba(42,212,255,.25);padding:3px 7px;border-radius:6px">TESTNET</span>
+        </div>
+        <span style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(120,165,205,.4)">Calm beneath the chaos · Powered by DeepBook</span>
+      </div>
+    </footer>
+
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ APP ═══════════════ -->
+  <sc-if value="{{ showApp }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="App">
+
+  <!-- ░░░ NAV ░░░ -->
+  <nav style="position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid rgba(96,165,222,0.12);background:rgba(3,11,22,0.72);backdrop-filter:blur(14px)">
+    <div onClick="{{ onHome }}" title="Back to home" style="display:flex;align-items:center;gap:11px;cursor:pointer">
+      <span style="display:flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9px;background:linear-gradient(160deg,#0b2742,#05162a);box-shadow:0 0 14px -3px rgba(42,212,255,.45),inset 0 1px 1px rgba(120,200,255,.25)">
+        <svg width="20" height="22" viewBox="0 0 28 30" fill="none">
+          <defs><linearGradient id="shg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fddff"/><stop offset=".5" stop-color="#1789c4"/><stop offset="1" stop-color="#06314e"/></linearGradient></defs>
+          <path d="M14 1 L26 5 V15 C26 23 20 27 14 29 C8 27 2 23 2 15 V5 Z" fill="url(#shg)"/>
+          <path d="M4 12.5 Q8 9.5 14 12.5 Q20 15.5 24 12.5" stroke="#eaf9ff" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+          <circle cx="14" cy="20.5" r="4.4" fill="#bfeaff" opacity=".32"/>
+          <circle cx="14" cy="20.5" r="2.4" fill="#eaf9ff"/>
+        </svg>
+      </span>
+      <span style="font-size:18px;font-weight:600;letter-spacing:-.02em">Insuirance</span>
+      <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.08em;color:#7fd6ef;background:rgba(42,212,255,.1);border:1px solid rgba(42,212,255,.25);padding:3px 7px;border-radius:6px">TESTNET</span>
+    </div>
+    <sc-if value="{{ connected }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ onDisconnect }}" style="display:flex;align-items:center;gap:8px;font-family:'Geist Mono',monospace;font-size:12px;color:#cfe8f6;background:rgba(8,22,40,0.8);border:1px solid rgba(96,165,222,0.2);padding:8px 12px;border-radius:10px;cursor:pointer;transition:border-color .15s" style-hover="border-color:rgba(120,200,255,.4)">
+        <span style="width:7px;height:7px;border-radius:50%;background:#4ce0a8;animation:dot-pulse 2s infinite"></span>{{ shortAddr }}
+      </button>
+    </sc-if>
+    <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{ onConnect }}" style="font-size:13px;font-weight:600;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);border:none;padding:9px 16px;border-radius:10px;cursor:pointer;box-shadow:0 0 18px -4px rgba(42,212,255,.6)">Connect Wallet</button>
+    </sc-if>
+  </nav>
+
+  <!-- ░░░ STORM SURFACE HERO ░░░ -->
+  <header style="position:relative;overflow:hidden;padding:38px 22px 0;text-align:center">
+    <!-- storm scene -->
+    <div style="position:absolute;left:50%;transform:translateX(-50%);top:-40px;width:160vw;max-width:1600px;height:340px;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 42%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 42%,transparent 100%)">
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(48,92,138,.92) 0%,rgba(40,80,124,.74) 36%,rgba(34,70,112,.42) 66%,transparent 100%)"></div>
+      <sc-for list="{{ rainStreaks }}" as="r" hint-placeholder-count="40">
+        <span style="position:absolute;top:0;left:{{ r.left }}%;width:{{ r.width }}px;height:{{ r.height }}px;opacity:{{ r.opacity }};border-radius:1px;background:rgba(165,218,255,.6);animation:storm-rain {{ r.duration }}s linear infinite;animation-delay:{{ r.delay }}s"></span>
+      </sc-for>
+      <div style="position:absolute;inset:0;background:rgba(180,220,255,.1);animation:storm-flash 5.3s ease-in-out infinite"></div>
+      <div style="position:absolute;inset:0;background:rgba(180,220,255,.08);animation:storm-flash 8.9s ease-in-out infinite;animation-delay:3.2s"></div>
+      <svg style="position:absolute;top:18px;left:24%;width:18px;height:54px;animation:storm-flash 5.3s ease-in-out infinite;filter:blur(.4px)" viewBox="0 0 18 52"><path d="M13,0 L5,24 L10,24 L2,52 L15,22 L9,22 Z" fill="rgba(215,240,255,.95)"/></svg>
+      <svg style="position:absolute;top:10px;left:70%;width:14px;height:46px;animation:storm-flash 8.9s ease-in-out infinite;animation-delay:3.2s;filter:blur(.4px)" viewBox="0 0 14 44"><path d="M10,0 L4,20 L8,20 L1,44 L12,17 L6,17 Z" fill="rgba(215,240,255,.9)"/></svg>
+      <svg style="position:absolute;left:0;bottom:88px;width:200%;height:64px" viewBox="0 0 2880 65" preserveAspectRatio="none"><path style="animation:wave-slide 10s linear infinite" d="M0,35 C240,63 480,7 720,35 C960,63 1200,7 1440,35 C1680,63 1920,7 2160,35 C2400,63 2640,7 2880,35 L2880,65 L0,65 Z" fill="rgba(14,48,98,.9)"/></svg>
+      <svg style="position:absolute;left:0;bottom:56px;width:200%;height:54px" viewBox="0 0 2880 55" preserveAspectRatio="none"><path style="animation:wave-slide 6.2s linear infinite" d="M0,28 C160,50 320,6 480,28 C640,50 800,6 960,28 C1120,50 1280,6 1440,28 C1600,50 1760,6 1920,28 C2080,50 2240,6 2400,28 C2560,50 2720,6 2880,28 L2880,55 L0,55 Z" fill="rgba(28,84,156,.82)"/></svg>
+      <svg style="position:absolute;left:0;bottom:26px;width:200%;height:44px" viewBox="0 0 2880 45" preserveAspectRatio="none"><path style="animation:wave-slide 3.5s linear infinite" d="M0,22 C80,38 160,6 240,22 C320,38 400,6 480,22 C560,38 640,6 720,22 C800,38 880,6 960,22 C1040,38 1120,6 1200,22 C1280,38 1360,6 1440,22 C1520,38 1600,6 1680,22 C1760,38 1840,6 1920,22 C2000,38 2080,6 2160,22 C2240,38 2320,6 2400,22 C2480,38 2560,6 2640,22 C2720,38 2800,6 2880,22 L2880,45 L0,45 Z" fill="rgba(46,128,214,.72)"/></svg>
+    </div>
+
+    <div style="position:relative;z-index:1;max-width:660px;margin:0 auto;padding-top:6px" class="rise">
+      <p style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:rgba(42,212,255,.62);margin:0 0 14px">[ SURFACE // VOLATILE ]</p>
+      <h1 style="font-size:42px;line-height:1.06;font-weight:600;letter-spacing:-.025em;margin:0">Surface storms don't<br>reach the deep.</h1>
+      <p style="font-size:15px;color:rgba(184,222,250,.6);margin:16px auto 0;max-width:440px;line-height:1.55">BTC crashes on the surface — your cover lives in the calm deep, settled onchain by DeepBook Predict.</p>
+    </div>
+
+    <!-- live volatility ticker (surface) -->
+    <div style="position:relative;z-index:1;display:inline-flex;align-items:center;gap:14px;margin:22px auto 0;padding:9px 16px;border-radius:12px;background:rgba(6,16,32,.66);border:1px solid rgba(120,160,210,.16);backdrop-filter:blur(8px)">
+      <span style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.1em;color:rgba(150,185,220,.6)">BTC/USD</span>
+      <span style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:600;color:#e8f4f8;font-variant-numeric:tabular-nums">{{ btcSpotFmt }}</span>
+      <span style="font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;color:{{ changeColor }};display:inline-flex;align-items:center;gap:3px">{{ changeArrow }} {{ btcChangeFmt }}<span style="color:rgba(150,185,220,.45);font-weight:400">24H</span></span>
+    </div>
+  </header>
+
+  <!-- ░░░ DESCENT DIVIDER ░░░ -->
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:30px 0 8px">
+    <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.3em;color:rgba(120,170,210,.42);text-transform:uppercase">descend to the deep</span>
+    <svg width="14" height="26" viewBox="0 0 14 26" style="animation:drift 2.6s ease-in-out infinite"><path d="M7 0 V20 M1 14 L7 21 L13 14" stroke="rgba(42,212,255,.5)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+
+  <!-- ░░░ APP COLUMN ░░░ -->
+  <main style="position:relative;z-index:2;max-width:540px;margin:0 auto;padding:4px 18px 90px">
+
+    <!-- ── CONNECTED APP ── -->
+    <sc-if value="{{ connected }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <!-- deep greeter + mascot -->
+      <div style="display:flex;align-items:center;gap:14px;padding:2px 2px 6px">
+        <div style="flex:none;width:58px;height:54px;animation:mascot-bob 5s ease-in-out infinite">
+          <svg width="58" height="54" viewBox="0 0 120 110" fill="none">
+            <path d="M70 18 Q70 8 80 7" stroke="#1c6f96" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            <circle cx="83" cy="6" r="6.5" fill="#2ad4ff" style="filter:drop-shadow(0 0 8px rgba(42,212,255,.9));transform-origin:83px 6px;animation:lure-pulse 2.2s ease-in-out infinite"/>
+            <ellipse cx="52" cy="60" rx="46" ry="36" fill="#0d4a6b"/>
+            <ellipse cx="52" cy="60" rx="46" ry="36" fill="url(#mg)" opacity="0.5"/>
+            <path d="M14 60 Q6 44 2 38 Q10 50 14 52 Z" fill="#0a3a55"/>
+            <path d="M16 78 Q8 90 4 96 Q14 84 18 82 Z" fill="#0a3a55"/>
+            <ellipse cx="46" cy="72" rx="30" ry="20" fill="#13608a" opacity="0.55"/>
+            <circle cx="60" cy="50" r="15" fill="#eaf9ff"/>
+            <circle cx="64" cy="52" r="8" fill="#06243a"/>
+            <circle cx="67" cy="49" r="3" fill="#fff"/>
+            <path d="M40 78 Q54 86 72 78" stroke="#06283f" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M48 79 l3 5 l4 -5 Z M58 80 l3 5 l4 -5 Z" fill="rgba(255,255,255,.85)"/>
+            <defs><radialGradient id="mg" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#2ad4ff"/><stop offset="1" stop-color="#0d4a6b" stop-opacity="0"/></radialGradient></defs>
+          </svg>
+        </div>
+        <div>
+          <p style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.26em;color:rgba(42,212,255,.6);text-transform:uppercase;margin:0 0 3px">[ DEPTH // CALM ]</p>
+          <p style="font-size:15px;font-weight:600;margin:0;color:#dff1fb">Finn has your cover in the deep.</p>
+        </div>
+      </div>
+
+      <!-- LIVE PRICE CARD -->
+      <div style="position:relative;overflow:hidden;border-radius:18px;border:1px solid rgba(96,165,222,0.16);background:linear-gradient(135deg,rgba(12,46,76,.5),rgba(7,20,38,.6));backdrop-filter:blur(10px);padding:18px 20px">
+        <div style="position:absolute;inset:0;opacity:.5;pointer-events:none"><svg width="100%" height="100%" viewBox="0 0 400 120" preserveAspectRatio="none"><defs><linearGradient id="sparkA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(42,212,255,.16)"/><stop offset="1" stop-color="rgba(42,212,255,0)"/></linearGradient></defs><path d="M0,52 C30,40 50,66 80,58 C110,50 130,30 160,44 C190,58 210,72 240,60 C270,48 290,78 320,70 C350,62 380,84 400,76 L400,120 L0,120 Z" fill="url(#sparkA)"/><path d="M0,52 C30,40 50,66 80,58 C110,50 130,30 160,44 C190,58 210,72 240,60 C270,48 290,78 320,70 C350,62 380,84 400,76" stroke="rgba(42,212,255,.55)" stroke-width="1.5" fill="none"/></svg></div>
+        <div style="position:relative;display:flex;align-items:flex-end;justify-content:space-between">
+          <div>
+            <p style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.14em;color:rgba(150,190,225,.6);text-transform:uppercase;margin:0 0 5px">BTC / USD · spot</p>
+            <p style="font-family:'Geist Mono',monospace;font-size:32px;font-weight:600;margin:0;letter-spacing:-.01em;font-variant-numeric:tabular-nums">{{ btcSpotFmt }}</p>
+            <p style="font-family:'Geist Mono',monospace;font-size:12px;font-weight:500;color:{{ changeColor }};margin:5px 0 0">{{ changeArrow }} {{ btcChangeFmt }} <span style="color:rgba(150,185,220,.4);font-weight:400">/ 24H</span></p>
+          </div>
+          <div style="text-align:right">
+            <span style="display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',monospace;font-size:10px;color:rgba(74,224,160,.9);background:rgba(74,224,160,.1);border:1px solid rgba(74,224,160,.25);padding:4px 8px;border-radius:7px"><span style="width:6px;height:6px;border-radius:50%;background:#4ce0a8;animation:dot-pulse 2s infinite"></span>ORACLE LIVE</span>
+            <p style="font-family:'Geist Mono',monospace;font-size:10px;color:rgba(130,170,205,.4);margin:8px 0 0">0x7af3…e21b</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+        <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:14px 15px">
+          <p style="font-size:11px;color:rgba(150,185,220,.55);margin:0 0 6px">Your Manager</p>
+          <p style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;margin:0">{{ managerFmt }}</p>
+          <p style="font-size:10px;color:rgba(130,170,205,.4);margin:4px 0 0">deposited dUSDC</p>
+        </div>
+        <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:14px 15px">
+          <p style="font-size:11px;color:rgba(150,185,220,.55);margin:0 0 6px">Vault Available</p>
+          <p style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;margin:0">{{ vaultAvailFmt }}</p>
+          <p style="font-size:10px;color:rgba(130,170,205,.4);margin:4px 0 0">cover capacity</p>
+        </div>
+      </div>
+
+      <!-- PRESSURE GAUGE (utilization) -->
+      <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:15px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:12px;color:rgba(170,200,230,.7)">Vault Pressure</span>
+          <span style="font-family:'Geist Mono',monospace;font-size:13px;font-weight:600;color:{{ utilColor }}">{{ utilPct }}%</span>
+        </div>
+        <div style="position:relative;height:8px;border-radius:6px;background:rgba(4,14,28,.8);overflow:hidden">
+          <div style="position:absolute;inset:0;width:{{ utilPct }}%;border-radius:6px;background:linear-gradient(90deg,#1d8fb8,{{ utilColor }});transition:width .6s cubic-bezier(.22,.61,.36,1);box-shadow:0 0 12px -2px {{ utilColor }}"></div>
+        </div>
+        <p style="font-size:10px;color:rgba(130,170,205,.42);margin:8px 0 0">{{ utilNote }}</p>
+      </div>
+
+      <!-- RECENT ACTIVITY -->
+      <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+          <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(150,185,220,.55)">Recent Activity</span>
+          <span style="font-size:10px;color:rgba(130,170,205,.4)">128+ policies issued</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ activity }}" as="a" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:9px;font-size:12px">
+              <span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ a.dot }}"></span>
+              <span style="font-family:'Geist Mono',monospace;color:rgba(170,200,230,.7)">{{ a.who }}</span>
+              <span style="color:rgba(150,185,220,.5)">{{ a.action }}</span>
+              <span style="margin-left:auto;font-family:'Geist Mono',monospace;color:rgba(120,160,200,.4);font-size:11px">{{ a.time }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- TAB SWITCHER -->
+      <div style="display:flex;gap:5px;padding:5px;border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(6,16,30,0.6)">
+        <button onClick="{{ onTabCover }}" style="{{ coverTabStyle }}">Buy Cover</button>
+        <button onClick="{{ onTabVault }}" style="{{ vaultTabStyle }}">Earn Yield</button>
+      </div>
+
+      <!-- ═══ BUY COVER ═══ -->
+      <sc-if value="{{ tabCover }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- EXPOSURE CALCULATOR -->
+        <sc-if value="{{ calcClosed }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ onCalcToggle }}" style="width:100%;text-align:left;border-radius:14px;border:1px dashed rgba(96,165,222,0.28);background:rgba(255,255,255,.015);padding:15px 17px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:rgba(42,212,255,.05);border-color:rgba(42,212,255,.4)">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <p style="font-size:14px;font-weight:600;margin:0;color:#dff1fb">How exposed is your BTC?</p>
+                <p style="font-size:11px;color:rgba(150,185,220,.5);margin:4px 0 0">Calculate your downside in seconds</p>
+              </div>
+              <span style="font-size:18px;color:rgba(42,212,255,.6)">→</span>
+            </div>
+          </button>
+        </sc-if>
+        <sc-if value="{{ calcOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="border-radius:16px;border:1px solid rgba(42,212,255,.28);background:rgba(8,32,54,.32);padding:18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <p style="font-size:14px;font-weight:600;margin:0">Exposure Calculator</p>
+                <p style="font-size:11px;color:rgba(150,185,220,.55);margin:4px 0 0">BTC @ {{ btcSpotFmt }}</p>
+              </div>
+              <button onClick="{{ onCalcToggle }}" style="background:none;border:none;color:rgba(150,185,220,.5);font-size:15px;cursor:pointer">✕</button>
+            </div>
+            <div style="display:flex;align-items:center;border:1px solid rgba(96,165,222,0.2);background:rgba(4,14,28,.6);border-radius:11px;overflow:hidden">
+              <input type="number" min="0" step="0.001" value="{{ btcHoldings }}" onInput="{{ onHoldings }}" placeholder="How much BTC do you hold?" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:14px;padding:11px 13px"/>
+              <span style="font-family:'Geist Mono',monospace;font-size:12px;color:rgba(150,185,220,.6);padding-right:13px">BTC</span>
+            </div>
+            <sc-if value="{{ hasHoldings }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="border-radius:12px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,.5);padding:14px;display:flex;flex-direction:column;gap:9px">
+                  <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:rgba(170,200,230,.65)">Portfolio Value</span><span style="font-family:'Geist Mono',monospace;font-weight:600">{{ portfolioFmt }}</span></div>
+                  <div style="height:1px;background:rgba(96,165,222,.12)"></div>
+                  <sc-for list="{{ lossRows }}" as="l" hint-placeholder-count="3">
+                    <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:rgba(150,185,220,.55)">{{ l.label }}</span><span style="font-family:'Geist Mono',monospace;color:#ff7a7a">−{{ l.amt }}</span></div>
+                  </sc-for>
+                </div>
+                <div style="border-radius:12px;border:1px solid rgba(245,181,68,.32);background:rgba(60,42,8,.3);padding:14px;display:flex;flex-direction:column;gap:11px">
+                  <div style="display:flex;gap:11px;align-items:flex-start">
+                    <span style="font-size:17px">⚠️</span>
+                    <div>
+                      <p style="font-size:13px;font-weight:600;color:#f5cd7a;margin:0">{{ portfolioFmt }} unprotected</p>
+                      <p style="font-size:11px;color:rgba(245,181,68,.7);margin:4px 0 0">Consider <span style="font-family:'Geist Mono',monospace;font-weight:600">{{ recCover }} DUSDC</span> of Full Ladder cover</p>
+                    </div>
+                  </div>
+                  <button onClick="{{ onProtect }}" style="width:100%;border:none;border-radius:10px;background:linear-gradient(180deg,#f7c75a,#e6a72f);color:#2a1d04;font-weight:600;font-size:13px;padding:10px;cursor:pointer">Protect Now → {{ recCover }} DUSDC</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- COVER FORM -->
+        <div style="border-radius:18px;border:1px solid rgba(96,165,222,0.16);background:linear-gradient(180deg,rgba(10,28,50,.5),rgba(6,18,34,.55));backdrop-filter:blur(10px);padding:20px;display:flex;flex-direction:column;gap:18px">
+
+          <!-- manager balance row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px">
+            <span style="color:rgba(170,200,230,.65)">Manager Balance</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'Geist Mono',monospace;font-weight:600">{{ managerFmt }}</span>
+              <button onClick="{{ onDepositToggle }}" style="font-size:11px;color:#3fdcff;background:none;border:none;cursor:pointer">{{ depositToggleLabel }}</button>
+            </div>
+          </div>
+
+          <sc-if value="{{ depositOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid rgba(96,165,222,0.16);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:11px">
+              <div style="font-size:12px;color:rgba(150,185,220,.6)">Wallet: <span style="font-family:'Geist Mono',monospace;color:#fff">{{ walletFmt }}</span></div>
+              <div style="display:flex;align-items:center;border:1px solid rgba(96,165,222,0.18);background:rgba(4,14,28,.6);border-radius:10px;overflow:hidden">
+                <input type="number" value="{{ depositAmount }}" onInput="{{ onDepositInput }}" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:13px;padding:9px 12px"/>
+                <span style="font-family:'Geist Mono',monospace;font-size:11px;color:rgba(150,185,220,.6);padding-right:12px">DUSDC</span>
+              </div>
+              <button onClick="{{ onDeposit }}" style="width:100%;border:none;border-radius:10px;background:linear-gradient(180deg,#3fdcff,#0fa3da);color:#04121f;font-weight:600;font-size:13px;padding:10px;cursor:pointer">Deposit</button>
+            </div>
+          </sc-if>
+
+          <!-- spot -->
+          <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px solid rgba(96,165,222,.1);padding-top:16px">
+            <span style="color:rgba(170,200,230,.65)">BTC Spot</span>
+            <span style="font-family:'Geist Mono',monospace;font-weight:600">{{ btcSpotFmt }}</span>
+          </div>
+
+          <!-- strategy -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <label style="font-size:12px;color:rgba(170,200,230,.65)">Strategy</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <sc-for list="{{ strategies }}" as="s" hint-placeholder-count="4">
+                <button onClick="{{ s.onClick }}" style="{{ s.style }}">
+                  <p style="font-size:12px;font-weight:600;margin:0">{{ s.label }}</p>
+                  <p style="font-size:11px;margin:3px 0 0;color:{{ s.subColor }}">{{ s.sub }}</p>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- triggers -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <label style="font-size:12px;color:rgba(170,200,230,.65)">Coverage Triggers <span style="font-size:11px;color:rgba(130,170,205,.45)">· {{ triggerHint }}</span></label>
+            <div style="display:flex;gap:8px">
+              <sc-for list="{{ triggersView }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.onClick }}" style="{{ t.style }}">
+                  <div style="font-size:13px;font-weight:600">{{ t.label }}</div>
+                  <div style="font-size:11px;margin-top:3px;color:{{ t.subColor }}">{{ t.sub }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- expiry timeline -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <label style="font-size:12px;color:rgba(170,200,230,.65)">Expiry</label>
+            <div style="border-radius:13px;overflow:hidden;border:1px solid rgba(96,165,222,.12);background:rgba(3,12,26,.6)">
+              <div style="background:rgba(2,10,22,.7);border-bottom:1px solid rgba(255,255,255,.05);padding:0"><svg viewBox="0 0 400 56" preserveAspectRatio="none" style="width:100%;height:54px;display:block"><defs><linearGradient id="etG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(42,180,255,.22)"/><stop offset="1" stop-color="rgba(42,180,255,.02)"/></linearGradient></defs><path d="M24,46 C90,42 150,34 210,26 C270,18 330,14 376,11 L376,56 L24,56 Z" fill="url(#etG)"/><path d="M24,46 C90,42 150,34 210,26 C270,18 330,14 376,11" stroke="rgba(42,200,255,.6)" stroke-width="1.5" fill="none"/><text x="6" y="13" font-size="7" fill="rgba(120,170,220,.45)" font-family="monospace">est. cost ↑</text></svg></div>
+              <div ref="{{ expRailRef }}" style="display:flex;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth">
+                <sc-for list="{{ expiriesView }}" as="e" hint-placeholder-count="6">
+                  <button onClick="{{ e.onClick }}" data-oid="{{ e.id }}" style="{{ e.style }}">
+                    <div style="text-align:center">
+                      <p style="font-size:10px;color:rgba(150,185,220,.5);margin:0;line-height:1">{{ e.mon }}</p>
+                      <p style="font-family:'Geist Mono',monospace;font-size:19px;font-weight:700;margin:2px 0;line-height:1;color:{{ e.dayColor }}">{{ e.day }}</p>
+                      <p style="font-size:9px;color:rgba(130,170,205,.4);margin:0;line-height:1">{{ e.time }}</p>
+                    </div>
+                    <span style="{{ e.pillStyle }}">{{ e.cd }}</span>
+                    <div style="width:100%;height:2px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden"><div style="height:100%;border-radius:2px;width:{{ e.barWidth }}%;background:{{ e.barColor }}"></div></div>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;border-top:1px solid rgba(255,255,255,.04);padding:6px 9px">
+                <button onClick="{{ onExpPrev }}" style="flex:none;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:none;background:rgba(255,255,255,.05);color:rgba(180,210,235,.7);cursor:pointer;font-size:16px;line-height:1;transition:.15s" style-hover="background:rgba(42,212,255,.18);color:#3fdcff">‹</button>
+                <p style="flex:1;font-size:10px;color:rgba(100,140,180,.42);margin:0;text-align:center">Longer expiry → more time · higher premium</p>
+                <button onClick="{{ onExpNext }}" style="flex:none;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:none;background:rgba(255,255,255,.05);color:rgba(180,210,235,.7);cursor:pointer;font-size:16px;line-height:1;transition:.15s" style-hover="background:rgba(42,212,255,.18);color:#3fdcff">›</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- cover amount -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <label style="font-size:12px;color:rgba(170,200,230,.65)">Cover Amount <span style="color:rgba(130,170,205,.45)">(per trigger)</span></label>
+            <div style="display:flex;align-items:center;border:1px solid rgba(96,165,222,0.18);background:rgba(4,14,28,.6);border-radius:11px;overflow:hidden">
+              <input type="number" min="0.01" step="0.01" value="{{ coverAmount }}" onInput="{{ onCoverInput }}" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:14px;padding:11px 13px"/>
+              <span style="font-family:'Geist Mono',monospace;font-size:12px;color:rgba(150,185,220,.6);padding-right:13px">DUSDC</span>
+            </div>
+          </div>
+
+          <!-- payout scenarios -->
+          <sc-if value="{{ showPayout }}" hint-placeholder-val="{{ true }}">
+            <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));padding:15px;display:flex;flex-direction:column;gap:11px">
+              <p style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(150,185,220,.55);margin:0">Payout Scenarios</p>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ payoutRows }}" as="p" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+                    <span style="color:rgba(150,185,220,.55);width:64px;flex:none">≥{{ p.drop }} drop</span>
+                    <span style="font-family:'Geist Mono',monospace;font-size:11px;color:rgba(170,200,230,.6)">→ {{ p.strike }}</span>
+                    <span style="margin-left:auto;font-family:'Geist Mono',monospace;font-weight:600;color:#4ce0a8">+{{ p.payout }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;border-top:1px solid rgba(96,165,222,.12);padding-top:11px;font-size:11px">
+                <div><p style="color:rgba(150,185,220,.55);margin:0">Policies Minted</p><p style="font-weight:600;margin:3px 0 0">{{ policiesMinted }}</p></div>
+                <div style="text-align:right"><p style="color:rgba(150,185,220,.55);margin:0">Max Premium <span style="color:#4ce0a8">SVI</span></p><p style="font-family:'Geist Mono',monospace;font-weight:600;color:#f5cd7a;margin:3px 0 0">{{ premiumFmt }}</p></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <button onClick="{{ onBuy }}" style="{{ buyStyle }}">{{ buyLabel }}</button>
+          <p style="font-size:10px;color:rgba(120,160,200,.42);text-align:center;margin:0">Powered by DeepBook Predict · Sui Testnet</p>
+        </div>
+
+        <!-- MY POLICIES -->
+        <sc-if value="{{ hasPolicies }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <p style="font-size:15px;font-weight:600;margin:6px 0 0">My Policies</p>
+            <sc-for list="{{ policiesView }}" as="p" hint-placeholder-count="2">
+              <div style="{{ p.cardStyle }}">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-weight:600;font-size:14px">{{ p.asset }} Cover</span>
+                    <span style="{{ p.badgeStyle }}">{{ p.badge }}</span>
+                  </div>
+                  <span style="font-family:'Geist Mono',monospace;font-size:10px;color:rgba(130,170,205,.45)">{{ p.short }}</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+                  <div><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">Strike</p><p style="font-family:'Geist Mono',monospace;font-weight:600;margin:3px 0 0">{{ p.strike }}</p></div>
+                  <div><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">Cover</p><p style="font-family:'Geist Mono',monospace;margin:3px 0 0">{{ p.cover }}</p></div>
+                  <div><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">Premium Paid</p><p style="font-family:'Geist Mono',monospace;margin:3px 0 0">{{ p.premium }}</p></div>
+                  <div><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">BTC Live</p><p style="font-family:'Geist Mono',monospace;font-weight:600;margin:3px 0 0;color:{{ p.liveColor }}">{{ btcSpotFmt }}</p></div>
+                </div>
+                <div style="border-radius:10px;background:rgba(255,255,255,.04);padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:rgba(150,185,220,.55)">Time until expiry</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:rgba(200,225,245,.85)">{{ p.countdown }}</span></div>
+                  <div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:rgba(150,185,220,.55)">Needs to drop</span><span style="font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;color:#f5cd7a">{{ p.gap }}</span></div>
+                </div>
+                <button style="width:100%;border:none;border-radius:10px;background:rgba(255,255,255,.06);color:rgba(170,200,230,.5);font-size:13px;padding:10px;cursor:not-allowed">Waiting for oracle settlement…</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- ═══ EARN YIELD / SHIELDVAULT ═══ -->
+      <sc-if value="{{ tabVault }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <p style="font-size:16px;font-weight:600;margin:0">ShieldVault</p>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:'Geist Mono',monospace;font-size:11px;color:#4ce0a8">+0.099% since inception</span>
+            <span style="font-size:10px;font-family:'Geist Mono',monospace;color:#0a3a22;background:#4ce0a8;padding:3px 8px;border-radius:6px;font-weight:600">LP YIELD</span>
+          </div>
+        </div>
+        <p style="font-size:12px;color:rgba(150,185,220,.55);line-height:1.5;margin:0">Deposit dUSDC → the vault becomes a DeepBook Predict LP → earns premiums from cover buyers. You hold a VaultShare NFT, withdrawable anytime.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+          <sc-for list="{{ vaultStats }}" as="v" hint-placeholder-count="4">
+            <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:14px 15px">
+              <p style="font-size:11px;color:rgba(150,185,220,.55);margin:0 0 6px">{{ v.label }}</p>
+              <p style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:600;margin:0;color:{{ v.color }}">{{ v.value }}</p>
+              <p style="font-size:10px;color:rgba(130,170,205,.4);margin:4px 0 0">{{ v.sub }}</p>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border-radius:18px;border:1px solid rgba(74,224,160,.3);background:rgba(8,40,28,.28);padding:18px;display:flex;flex-direction:column;gap:13px">
+          <p style="font-size:13px;font-weight:600;color:#7ce8bc;margin:0">Deposit dUSDC</p>
+          <div style="display:flex;align-items:center;border:1px solid rgba(96,165,222,0.18);background:rgba(4,14,28,.6);border-radius:11px;overflow:hidden">
+            <input type="number" min="0" step="0.01" value="{{ vaultAmount }}" onInput="{{ onVaultInput }}" placeholder="Amount" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:14px;padding:11px 13px"/>
+            <button onClick="{{ onVaultMax }}" style="font-family:'Geist Mono',monospace;font-size:11px;color:#4ce0a8;background:none;border:none;border-left:1px solid rgba(96,165,222,.15);padding:0 12px;cursor:pointer">MAX</button>
+            <span style="font-family:'Geist Mono',monospace;font-size:12px;color:rgba(150,185,220,.6);padding-right:13px">DUSDC</span>
+          </div>
+          <button onClick="{{ onVaultDeposit }}" style="width:100%;border:none;border-radius:11px;background:linear-gradient(180deg,#54e3aa,#1eaa72);color:#042617;font-weight:600;font-size:14px;padding:12px;cursor:pointer;box-shadow:0 0 18px -6px rgba(74,224,160,.7)">Deposit &amp; Earn</button>
+        </div>
+
+        <sc-if value="{{ hasPositions }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <p style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(150,185,220,.55);margin:4px 0 0">Your Positions</p>
+            <sc-for list="{{ positionsView }}" as="p" hint-placeholder-count="1">
+              <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.55);padding:15px;display:flex;flex-direction:column;gap:11px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">VaultShare NFT</p><p style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:600;margin:4px 0 0">{{ p.value }}</p></div>
+                  <div style="text-align:right"><p style="font-size:11px;color:rgba(150,185,220,.55);margin:0">Pool share</p><p style="font-family:'Geist Mono',monospace;font-size:13px;margin:4px 0 0">{{ p.pct }}%</p></div>
+                </div>
+                <p style="font-family:'Geist Mono',monospace;font-size:10px;color:rgba(130,170,205,.42);margin:0">{{ p.short }}</p>
+                <button style="width:100%;border:none;border-radius:10px;background:rgba(255,255,255,.08);color:#dff1fb;font-size:13px;padding:10px;cursor:pointer;transition:background .15s" style-hover="background:rgba(255,255,255,.16)">Withdraw</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ── DISCONNECTED LANDING ── -->
+    <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <sc-for list="{{ valueProps }}" as="c" hint-placeholder-count="3">
+          <div style="border-radius:14px;border:1px solid rgba(96,165,222,0.14);background:rgba(9,23,42,0.5);padding:15px 12px;text-align:center"><p style="font-size:13px;font-weight:600;margin:0">{{ c.title }}</p><p style="font-size:11px;color:rgba(150,185,220,.5);margin:6px 0 0;line-height:1.4">{{ c.desc }}</p></div>
+        </sc-for>
+      </div>
+      <div style="border-radius:18px;border:1px solid rgba(96,165,222,0.16);background:rgba(9,23,42,0.5);padding:20px;display:flex;flex-direction:column;gap:15px">
+        <p style="font-size:14px;font-weight:600;color:rgba(200,225,245,.85);margin:0">How it works</p>
+        <sc-for list="{{ howItWorks }}" as="h" hint-placeholder-count="3">
+          <div style="display:flex;gap:12px">
+            <span style="flex:none;width:24px;height:24px;border-radius:50%;background:linear-gradient(180deg,#3fdcff,#0fa3da);color:#04121f;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px">{{ h.n }}</span>
+            <div><p style="font-size:13px;font-weight:600;margin:0">{{ h.title }}</p><p style="font-size:11px;color:rgba(150,185,220,.5);margin:4px 0 0;line-height:1.45">{{ h.desc }}</p></div>
+          </div>
+        </sc-for>
+        <button onClick="{{ onConnect }}" style="width:100%;border:none;border-radius:12px;background:linear-gradient(180deg,#3fdcff,#0fa3da);color:#04121f;font-weight:600;font-size:14px;padding:12px;cursor:pointer;box-shadow:0 0 18px -4px rgba(42,212,255,.6);margin-top:4px">Connect Wallet to Dive In</button>
+      </div>
+    </div>
+    </sc-if>
+
+  </main>
+
+  <!-- footer binary noise -->
+  <footer style="position:relative;z-index:2;text-align:center;padding:0 18px 34px">
+    <p style="font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.18em;color:rgba(60,100,140,.28);word-break:break-all;line-height:1.8;max-width:540px;margin:0 auto">01000100 01000101 01000101 01010000 · CALM BENEATH THE CHAOS · 01000010 01001111 01001111 01001011</p>
+  </footer>
+
+  </div>
+  </sc-if>
+
+  <!-- ░░░ DEPTH DIVE OVERLAY ░░░ -->
+  <sc-if value="{{ diving }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ onDismissDive }}" style="position:fixed;inset:0;z-index:90;overflow:hidden;cursor:{{ dismissCursor }};opacity:{{ overlayOpacity }};transition:opacity .7s ease">
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,#0e3558 0%,#061a30 40%,#030d1e 72%,#01080f 100%);opacity:{{ stormBgOpacity }};transition:opacity 2.8s ease"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,#010d1c 0%,#010810 35%,#010609 68%,#020508 100%);opacity:{{ deepBgOpacity }};transition:opacity 2.8s ease"></div>
+    <canvas ref="{{ canvasRef }}" style="position:absolute;left:0;top:0;width:100vw;height:100vh;transform:translateY({{ waveSlide }}px);opacity:{{ waveOpacity }};transition:transform 2.8s cubic-bezier(.4,0,.2,1),opacity 1.8s ease"></canvas>
+    <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(1,5,10,.95) 0%,rgba(1,5,10,.5) 25%,transparent 55%);opacity:{{ vignetteOpacity }};transition:opacity 2.5s ease"></div>
+    <div style="position:absolute;left:50%;transform:translateX(-50%);top:{{ diverTop }}%;transition:top 2.7s cubic-bezier(.3,0,.25,1);z-index:10">
+      <svg width="64" height="82" viewBox="0 0 80 100" fill="none" style="transform:rotate({{ diverAngle }}deg);filter:{{ diverFilter }};transition:transform 2.6s ease,filter 1.8s ease">
+        <defs>
+          <radialGradient id="dvGlow" cx="0.42" cy="0.36" r="0.72"><stop offset="0" stop-color="#cdf6ff"/><stop offset=".5" stop-color="#37c9ef"/><stop offset="1" stop-color="#0c6e96"/></radialGradient>
+        </defs>
+        <!-- fins -->
+        <path d="M31 79 Q23 96 18 99 Q31 90 36 85 Z" fill="#0c3550"/>
+        <path d="M49 79 Q57 96 62 99 Q49 90 44 85 Z" fill="#0c3550"/>
+        <!-- arms -->
+        <path d="M30 62 Q18 66 16 77" stroke="#0e3a58" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path d="M50 62 Q62 66 64 77" stroke="#0e3a58" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <!-- torso -->
+        <path d="M28 56 Q26 80 33 88 Q40 92 47 88 Q54 80 52 56 Z" fill="#0e3a58"/>
+        <!-- helmet silhouette -->
+        <circle cx="40" cy="34" r="22" fill="#0e3a58"/>
+        <!-- glowing visor -->
+        <circle cx="40" cy="33" r="14" fill="url(#dvGlow)"/>
+        <!-- highlight -->
+        <ellipse cx="34" cy="27" rx="4.6" ry="2.8" fill="rgba(235,251,255,.55)" transform="rotate(-25 34 27)"/>
+      </svg>
+    </div>
+    <sc-for list="{{ bubbles }}" as="b" hint-placeholder-count="0">
+      <span style="position:absolute;left:{{ b.left }}%;top:{{ diverBubbleTop }}%;width:{{ b.size }}px;height:{{ b.size }}px;border-radius:50%;background:rgba(160,225,255,.22);border:1px solid rgba(120,205,255,.45);opacity:{{ bubbleOpacity }};animation:bubble-rise {{ b.dur }}s ease-out infinite;animation-delay:{{ b.delay }}s"></span>
+    </sc-for>
+    <sc-for list="{{ particles }}" as="p" hint-placeholder-count="0">
+      <span style="position:absolute;left:{{ p.x }}%;top:{{ p.y }}%;width:{{ p.size }}px;height:{{ p.size }}px;border-radius:50%;background:{{ p.color }};opacity:{{ particleOpacity }};transition:opacity .9s ease;animation:biolum-float {{ p.dur }}s ease-in-out infinite;animation-delay:{{ p.delay }}s"></span>
+    </sc-for>
+    <div style="position:absolute;left:0;right:0;top:28%;display:flex;flex-direction:column;align-items:center;gap:16px;pointer-events:none;opacity:{{ msgOpacity }};transform:translateY({{ msgShift }}px);transition:opacity .9s ease,transform .9s ease">
+      <div style="display:flex;align-items:center;gap:18px">
+        <div style="width:1px;height:40px;background:rgba(42,212,255,.28)"></div>
+        <div style="text-align:center;display:flex;flex-direction:column;gap:7px">
+          <p style="font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:#2ad4ff;margin:0">{{ msgPrimary }}</p>
+          <p style="font-family:'Geist Mono',monospace;font-size:11px;color:rgba(160,210,255,.32);margin:0">Calm beneath the chaos · Powered by DeepBook</p>
+        </div>
+        <div style="width:1px;height:40px;background:rgba(42,212,255,.28)"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;opacity:{{ dismissOpacity }};transition:opacity .7s ease">
+        <button onClick="{{ onDismissDive }}" style="pointer-events:auto;display:inline-flex;align-items:center;gap:8px;font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#04121f;background:linear-gradient(180deg,#5fe2ff,#16a8df);border:none;border-radius:11px;padding:11px 22px;cursor:pointer;box-shadow:0 0 24px -4px rgba(42,212,255,.6)" style-hover="box-shadow:0 0 32px -2px rgba(42,212,255,.85)">Enter the deep →</button>
+        <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(140,195,235,.4);animation:drift 2.4s ease-in-out infinite">press anywhere to continue</span>
+      </div>
+    </div>
+    <sc-if value="{{ showSkip }}" hint-placeholder-val="{{ false }}">
+    <button onClick="{{ onSkipDive }}" style="position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:none;border:none;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.22);cursor:pointer;z-index:11">skip</button>
+    </sc-if>
+  </div>
+  </sc-if>
+
+
+
+  <!-- toast -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:13px;background:rgba(8,32,22,.92);border:1px solid rgba(74,224,160,.35);box-shadow:0 8px 30px -6px rgba(0,0,0,.6);backdrop-filter:blur(10px)" class="rise">
+    <span style="width:8px;height:8px;border-radius:50%;background:#4ce0a8;box-shadow:0 0 10px #4ce0a8"></span>
+    <span style="font-size:13px;color:#dff7ec">{{ toast }}</span>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    const now = Date.now();
+    this.now = now;
+    this.DAY = 86400000;
+    this.STRATEGIES = [
+      { label:'Conservative', sub:'5% drop',    bps:[500] },
+      { label:'Balanced',     sub:'10% drop',   bps:[1000] },
+      { label:'Black Swan',   sub:'20% drop',   bps:[2000] },
+      { label:'Full Ladder',  sub:'All levels', bps:[500,1000,2000] },
+    ];
+    this.TRIGGERS = [
+      { bps:500,  label:'5%',  drop:'5%',  desc:'Mild dip' },
+      { bps:1000, label:'10%', drop:'10%', desc:'Correction' },
+      { bps:2000, label:'20%', drop:'20%', desc:'Crash' },
+    ];
+    this.EXPIRIES = [
+      { id:'e1', ms: now + 2*this.DAY },
+      { id:'e2', ms: now + 7*this.DAY },
+      { id:'e3', ms: now + 14*this.DAY },
+      { id:'e4', ms: now + 30*this.DAY },
+      { id:'e5', ms: now + 60*this.DAY },
+      { id:'e6', ms: now + 90*this.DAY },
+    ];
+    this.rainStreaks = Array.from({length:46},(_,i)=>({
+      key:i,
+      left: ((i*2.31 + (i%3)*0.6)%100).toFixed(2),
+      height: 12 + (i*7)%26,
+      opacity: (0.08 + (i%7)*0.035).toFixed(3),
+      duration: (0.32 + (i%8)*0.04).toFixed(3),
+      delay: (-((i*11%23)*0.06)).toFixed(3),
+      width: i%5===0?2:1,
+    }));
+    this.ambient = Array.from({length:20},(_,i)=>({
+      key:i,
+      x: ((i*9.7+13)%96).toFixed(1),
+      y: (38 + (i*7.3)%58).toFixed(1),
+      size: 2+(i%3),
+      color: ['rgba(42,212,255,.5)','rgba(74,224,168,.42)','rgba(150,120,255,.38)'][i%3],
+      delay: ((i*0.4)%4).toFixed(2),
+      dur: (3.2+(i%4)*0.7).toFixed(2),
+    }));
+    this.bubbles = Array.from({length:14},(_,i)=>({ key:i, left:(44+(i%5)*2.2-4.5).toFixed(1), size:3+(i%4), delay:((i*0.19)%1.6).toFixed(2), dur:(1.5+(i%3)*0.45).toFixed(2) }));
+    this.particles = Array.from({length:24},(_,i)=>({ key:i, x:(4+(i*4.4)%92).toFixed(1), y:(46+(i*2.9)%48).toFixed(1), color:['rgba(42,212,255,.8)','rgba(74,224,168,.7)','rgba(150,120,255,.6)'][i%3], size:2+(i%3), delay:((i*0.31)%3.8).toFixed(2), dur:(2.6+(i%4)*0.55).toFixed(2) }));
+    this.WAVE_LAYERS = [
+      { amp:32, freq:0.014, speed:1.0, phase:0.0, yBase:0.22, r:8,  g:60, b:140, a:0.70 },
+      { amp:24, freq:0.023, speed:2.4, phase:2.1, yBase:0.25, r:12, g:80, b:160, a:0.60 },
+      { amp:20, freq:0.019, speed:1.6, phase:1.1, yBase:0.28, r:6,  g:55, b:135, a:0.55 },
+      { amp:16, freq:0.036, speed:3.9, phase:0.6, yBase:0.30, r:25, g:100,b:180, a:0.45 },
+      { amp:10, freq:0.050, speed:5.5, phase:1.9, yBase:0.27, r:45, g:125,b:205, a:0.35 },
+      { amp:28, freq:0.010, speed:0.7, phase:3.3, yBase:0.24, r:4,  g:40, b:115, a:0.50 },
+    ];
+    this.canvasRef = React.createRef();
+    this.expRailRef = React.createRef();
+    this.timers = [];
+    this.t = 0; this.intensity = 1; this.intensityTarget = 1; this._raf = 0;
+    this.state = {
+      view:'hero',
+      connected:true, tab:'cover',
+      btcSpot:104820, btcChange:-3.8,
+      managerBalance:24, walletBalance:150,
+      vaultAvailable:412300, utilization:0.62,
+      calcOpen:false, btcHoldings:'',
+      strategy:'Balanced', triggers:[1000], expiryId:'e2',
+      coverAmount:'5', depositOpen:false, depositAmount:'5', vaultAmount:'',
+      policies:[
+        { id:'0x9a3f…b1', asset:'BTC', strikeBps:1000, cover:5, premium:0.74, expiryMs: now+7*this.DAY },
+        { id:'0x4c81…7e', asset:'BTC', strikeBps:500,  cover:5, premium:0.41, expiryMs: now+2*this.DAY },
+      ],
+      positions:[ { id:'0xv1c9…2a', value:12.4, pct:2.81 } ],
+      diving:false, divingType:'cover', phase:'surface',
+      diverTop:10, diverAngle:0, waveSlide:0, waveOpacity:1,
+      bgDark:false, showBubbles:false, showParticles:false, showMsg:false,
+      toast:null,
+    };
+  }
+
+  componentDidMount(){
+    this.tick = setInterval(()=>{
+      this.setState(s=>{
+        const d = Math.sin(Date.now()/3300) + (Math.random()-0.5)*1.5;
+        let v = Math.max(101200, Math.min(107800, s.btcSpot + d*55));
+        return { btcSpot: Math.round(v) };
+      });
+    }, 1500);
+  }
+  componentWillUnmount(){ clearInterval(this.tick); this.timers.forEach(clearTimeout); cancelAnimationFrame(this._raf); }
+
+  // ── formatting ──
+  fmtUsd(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
+  fmtD(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' DUSDC'; }
+  strikeOf(bps){ return this.state.btcSpot*(1-bps/10000); }
+  premiumOf(bps, cover, expiryMs){
+    const T = Math.max(0,(expiryMs - Date.now())/(365.25*this.DAY));
+    const w = bps===500?0.55: bps===1000?1.0:1.7;
+    return cover * 0.045 * w * (0.4 + Math.sqrt(T)*1.8);
+  }
+
+  // ── canvas dive ──
+  drawFrame(ctx,w,h,t,intensity){
+    ctx.clearRect(0,0,w,h);
+    const lx = w*(0.4+Math.sin(t*0.6)*0.25);
+    const lg = ctx.createRadialGradient(lx,h*0.14,0,lx,h*0.14,w*0.5);
+    lg.addColorStop(0,`rgba(70,150,255,${0.13*intensity})`); lg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=lg; ctx.fillRect(0,0,w,h);
+    for(let wi=this.WAVE_LAYERS.length-1; wi>=0; wi--){
+      const l=this.WAVE_LAYERS[wi]; const amp=l.amp*intensity; const yb=h*l.yBase;
+      ctx.beginPath(); ctx.moveTo(0,yb);
+      for(let x=0;x<=w;x+=5){
+        const y=Math.sin(x*l.freq+t*l.speed+l.phase)*amp;
+        const y2=Math.sin(x*l.freq*2.2+t*l.speed*1.5+l.phase*0.8)*amp*0.38;
+        const y3=Math.sin(x*l.freq*4.1+t*l.speed*2.8+l.phase*1.6)*amp*0.15;
+        ctx.lineTo(x,yb+y+y2+y3);
+      }
+      ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+      const a0=l.a*intensity+0.02;
+      // long, fully-resolving fade into the deep bg colour (#01080f) — no hard band
+      const g=ctx.createLinearGradient(0,yb-amp,0,h);
+      g.addColorStop(0,`rgba(${l.r},${l.g},${l.b},${a0.toFixed(3)})`);
+      g.addColorStop(0.45,`rgba(3,28,52,${(a0*0.55).toFixed(3)})`);
+      g.addColorStop(0.8,`rgba(1,12,24,${(a0*0.22).toFixed(3)})`);
+      g.addColorStop(1,'rgba(1,8,15,0)');
+      ctx.fillStyle=g; ctx.fill();
+    }
+    // single soft depth wash that resolves to the exact bg colour at the bottom — seamless
+    const ab=ctx.createLinearGradient(0,h*0.16,0,h);
+    ab.addColorStop(0,'rgba(1,8,15,0)');
+    ab.addColorStop(0.55,`rgba(1,8,15,${(0.55*intensity+0.05).toFixed(3)})`);
+    ab.addColorStop(1,`rgba(1,8,15,${(0.92*intensity+0.08).toFixed(3)})`);
+    ctx.fillStyle=ab; ctx.fillRect(0,0,w,h);
+  }
+  loop(){
+    const c=this.canvasRef.current;
+    if(!c || !this.state.diving) return;
+    if(c.width!==c.clientWidth) c.width=c.clientWidth;
+    if(c.height!==c.clientHeight) c.height=c.clientHeight;
+    this.t+=0.016;
+    // ease wave intensity toward its target so the sea calms smoothly, never snaps
+    this.intensity += (this.intensityTarget - this.intensity) * 0.035;
+    if(Math.abs(this.intensityTarget - this.intensity) < 0.002) this.intensity = this.intensityTarget;
+    this.drawFrame(c.getContext('2d'), c.width, c.height, this.t, this.intensity);
+    this._raf=requestAnimationFrame(()=>this.loop());
+  }
+  startDive(type, onComplete){
+    this.t=0; this.intensity=1; this.intensityTarget=1;
+    this._onDiveDone = onComplete || null;
+    this.setState({ diving:true, divingType:type, phase:'surface', diverTop:8, diverAngle:0, waveSlide:0, waveOpacity:1, bgDark:false, showBubbles:false, showParticles:false, showMsg:false, canDismiss:false });
+    requestAnimationFrame(()=>this.loop());
+    this.timers.forEach(clearTimeout);
+    this.timers=[
+      setTimeout(()=>{ this.intensityTarget=0.62; this.setState({ phase:'diving', diverTop:42, diverAngle:9, waveSlide:-55, showBubbles:true }); },700),
+      setTimeout(()=>{ this.intensityTarget=0.28; this.setState({ diverTop:60, diverAngle:5, waveSlide:-150, waveOpacity:0.4 }); },2100),
+      setTimeout(()=>{ this.intensityTarget=0; this.setState({ phase:'deep', bgDark:true, diverAngle:0, diverTop:70, showBubbles:false, showParticles:true, waveSlide:-260, waveOpacity:0 }); },3500),
+      setTimeout(()=>this.setState({ phase:'success', showMsg:true }),4600),
+      setTimeout(()=>this.setState({ canDismiss:true }),5500),
+    ];
+  }
+  finishDive=()=>{
+    this.timers.forEach(clearTimeout);
+    cancelAnimationFrame(this._raf);
+    const done=this._onDiveDone; this._onDiveDone=null;
+    this.setState({ diving:false, canDismiss:false });
+    done && done();
+  }
+  dismissDive=()=>{
+    if(!this.state.canDismiss) return;
+    this.setState({ phase:'fading' });
+    this.timers.forEach(clearTimeout);
+    this.timers=[ setTimeout(()=>this.finishDive(), 650) ];
+  }
+  endDive=()=>{ this.finishDive(); }
+  onSkipDive=()=>{ this.finishDive(); }
+  showToast(msg){
+    this.setState({ toast:msg });
+    clearTimeout(this._toast);
+    this._toast=setTimeout(()=>this.setState({toast:null}),3600);
+  }
+
+  // ── handlers ──
+  onConnect=()=>this.setState({connected:true});
+  onDisconnect=()=>this.setState({connected:false});
+  onTabCover=()=>this.setState({tab:'cover'});
+  onTabVault=()=>this.setState({tab:'vault'});
+  onTestDive=()=>this.startDive('cover');
+  onLaunch=()=>{ this.setState({view:'app'}); window.scrollTo(0,0); };
+  onHome=()=>{ this.setState({view:'hero'}); window.scrollTo(0,0); };
+  navExp=(dir)=>{
+    const ids=this.EXPIRIES.map(e=>e.id);
+    let i=ids.indexOf(this.state.expiryId);
+    i=Math.max(0,Math.min(ids.length-1,i+dir));
+    this.setState({expiryId:ids[i]});
+    const el=this.expRailRef&&this.expRailRef.current;
+    if(el){ const card=el.children[i]; if(card){ const target=card.offsetLeft-(el.clientWidth-card.offsetWidth)/2; el.scrollTo({left:Math.max(0,target),behavior:'smooth'}); } }
+  };
+  onExpPrev=()=>this.navExp(-1);
+  onExpNext=()=>this.navExp(1);
+  onCalcToggle=()=>this.setState(s=>({calcOpen:!s.calcOpen}));
+  onHoldings=(e)=>this.setState({btcHoldings:e.target.value});
+  onCoverInput=(e)=>this.setState({coverAmount:e.target.value});
+  onDepositToggle=()=>this.setState(s=>({depositOpen:!s.depositOpen}));
+  onDepositInput=(e)=>this.setState({depositAmount:e.target.value});
+  onVaultInput=(e)=>this.setState({vaultAmount:e.target.value});
+  onVaultMax=()=>this.setState(s=>({vaultAmount:String(s.walletBalance.toFixed(2))}));
+  setStrategy=(st)=>this.setState({strategy:st.label, triggers:st.bps.slice()});
+  toggleTrigger=(bps)=>this.setState(s=>{
+    let t=s.triggers.slice();
+    if(t.includes(bps)){ if(t.length>1) t=t.filter(x=>x!==bps); }
+    else t.push(bps);
+    return { triggers:t, strategy:null };
+  });
+  setExpiry=(id)=>this.setState({expiryId:id});
+  onProtect=()=>this.setState({ coverAmount:'10', strategy:'Full Ladder', triggers:[500,1000,2000], calcOpen:false });
+  onDeposit=()=>{
+    const amt=parseFloat(this.state.depositAmount||'0');
+    if(amt<=0) return;
+    this.setState(s=>({ managerBalance:s.managerBalance+amt, walletBalance:Math.max(0,s.walletBalance-amt), depositOpen:false }));
+    this.showToast('Deposited '+amt.toFixed(2)+' DUSDC to manager');
+  };
+  onBuy=()=>{
+    const s=this.state;
+    const cover=parseFloat(s.coverAmount||'0');
+    if(cover<=0 || s.triggers.length===0) return;
+    const exp=this.EXPIRIES.find(e=>e.id===s.expiryId);
+    const total=s.triggers.reduce((a,b)=>a+this.premiumOf(b,cover,exp.ms),0);
+    if(total>s.managerBalance){ this.showToast('Insufficient manager balance — deposit more'); return; }
+    this.startDive('cover', ()=>{
+      const newP = s.triggers.map((bps,i)=>({
+        id:'0x'+(Math.random().toString(16).slice(2,6))+'…'+(Math.random().toString(16).slice(2,4)),
+        asset:'BTC', strikeBps:bps, cover, premium:this.premiumOf(bps,cover,exp.ms), expiryMs:exp.ms,
+      }));
+      this.setState(st=>({ managerBalance:Math.max(0,st.managerBalance-total), policies:[...newP,...st.policies] }));
+      this.showToast(s.triggers.length>1? s.triggers.length+' cover policies active in the deep':'Cover active in the deep');
+    });
+  };
+  onVaultDeposit=()=>{
+    const amt=parseFloat(this.state.vaultAmount||'0');
+    if(amt<=0) return;
+    this.startDive('deposit', ()=>{
+      this.setState(st=>({
+        walletBalance:Math.max(0,st.walletBalance-amt),
+        vaultAmount:'',
+        positions:[{ id:'0x'+Math.random().toString(16).slice(2,6)+'…'+Math.random().toString(16).slice(2,4), value:amt, pct:Number(((amt/440000)*100).toFixed(2)) }, ...st.positions],
+      }));
+      this.showToast('Secured '+amt.toFixed(2)+' DUSDC in the deep');
+    });
+  };
+
+  // ── derived view ──
+  renderVals(){
+    const s=this.state;
+    const cover=parseFloat(s.coverAmount||'0');
+    const btc=parseFloat(s.btcHoldings||'0');
+    const portfolio=btc*s.btcSpot;
+    const activeTriggers=this.TRIGGERS.filter(t=>s.triggers.includes(t.bps));
+    const exp=this.EXPIRIES.find(e=>e.id===s.expiryId)||this.EXPIRIES[0];
+    const totalPremium=activeTriggers.reduce((a,t)=>a+this.premiumOf(t.bps,cover,exp.ms),0);
+    const utilPct=Math.round(s.utilization*100);
+    const utilColor=utilPct>80?'#f5b544':utilPct>50?'#2ad4ff':'#4ce0a8';
+
+    const tabBtn=(on)=> on
+      ? 'flex:1;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);box-shadow:0 0 14px -4px rgba(42,212,255,.6);transition:.15s'
+      : 'flex:1;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;color:rgba(160,195,225,.6);background:transparent;transition:.15s';
+
+    const stratStyle=(active)=> active
+      ? 'text-align:left;border-radius:11px;padding:11px 13px;cursor:pointer;border:1px solid rgba(42,212,255,.5);background:rgba(42,212,255,.14);color:#eaf9ff;transition:.15s'
+      : 'text-align:left;border-radius:11px;padding:11px 13px;cursor:pointer;border:1px solid rgba(96,165,222,.14);background:rgba(255,255,255,.03);color:rgba(200,225,245,.8);transition:.15s';
+
+    const trigStyle=(on)=> on
+      ? 'flex:1;border-radius:11px;padding:11px 6px;cursor:pointer;border:1px solid #2ad4ff;background:rgba(42,212,255,.16);color:#eaf9ff;text-align:center;transition:.15s'
+      : 'flex:1;border-radius:11px;padding:11px 6px;cursor:pointer;border:1px solid rgba(96,165,222,.14);background:rgba(255,255,255,.03);color:rgba(170,200,230,.6);text-align:center;transition:.15s';
+
+    const now=Date.now();
+    const cd=(ms)=>{ const diff=ms-now; if(diff<=0)return{label:'exp',urgent:true}; const d=Math.floor(diff/this.DAY); const h=Math.floor((diff%this.DAY)/3600000); if(d>0)return{label:d+'d '+h+'h',urgent:d<1}; return{label:h+'h',urgent:true}; };
+
+    const expiriesView=this.EXPIRIES.map((e,i)=>{
+      const sel=e.id===s.expiryId;
+      const dt=new Date(e.ms);
+      const c=cd(e.ms);
+      const days=Math.max(0,(e.ms-now)/this.DAY);
+      return {
+        id:e.id, onClick:()=>this.setExpiry(e.id),
+        mon:dt.toLocaleDateString('en-US',{month:'short',timeZone:'UTC'}),
+        day:dt.toLocaleDateString('en-US',{day:'numeric',timeZone:'UTC'}),
+        time:dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'UTC'}),
+        cd:c.label,
+        dayColor: sel?'#fff':'rgba(200,225,245,.7)',
+        style:'position:relative;flex:none;min-width:90px;display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 10px;cursor:pointer;border:none;border-right:1px solid rgba(255,255,255,.05);transition:.15s;background:'+(sel?'rgba(0,100,200,.2)':'transparent'),
+        pillStyle:'font-family:Geist Mono,monospace;font-size:10px;padding:2px 8px;border-radius:9999px;background:'+(sel?'rgba(42,212,255,.2)':c.urgent?'rgba(220,80,80,.18)':'rgba(255,255,255,.06)')+';color:'+(sel?'#2ad4ff':c.urgent?'#ff8585':'rgba(170,200,230,.65)'),
+        barWidth:Math.min(100,(days/30)*100).toFixed(0),
+        barColor: sel?'linear-gradient(90deg,rgba(0,180,255,.6),#2ad4ff)':'rgba(100,140,200,.3)',
+      };
+    });
+
+    const policiesView=s.policies.map(p=>{
+      const strike=s.btcSpot; // display uses strike from bps of stored spot? use computed
+      const strikeVal=this.strikeOf(p.strikeBps);
+      const gap=Math.max(0,s.btcSpot-strikeVal);
+      const gapPct=s.btcSpot>0?(gap/s.btcSpot*100):0;
+      const c=cd(p.expiryMs);
+      return {
+        id:p.id, asset:p.asset, short:p.id,
+        strike:this.fmtUsd(strikeVal), cover:this.fmtD(p.cover), premium:this.fmtD(p.premium),
+        countdown:c.label, gap:this.fmtUsd(gap)+' ('+gapPct.toFixed(1)+'%)',
+        liveColor:'#fff',
+        badge:'ACTIVE',
+        badgeStyle:'font-size:10px;font-family:Geist Mono,monospace;color:#04121f;background:#3fdcff;padding:2px 7px;border-radius:6px;font-weight:600',
+        cardStyle:'border-radius:14px;border:1px solid rgba(96,165,222,.14);background:rgba(9,23,42,.55);padding:15px;display:flex;flex-direction:column;gap:12px',
+      };
+    });
+
+    return {
+      view:s.view, showHero:s.view==='hero', showApp:s.view==='app',
+      onLaunch:this.onLaunch, onHome:this.onHome,
+      heroStats:[
+        { value:'$4.2M', label:'Total Covered' },
+        { value:'1,284', label:'Active Covers' },
+        { value:'$1.9M', label:'Vault TVL' },
+        { value:'$612K', label:'Payouts Settled' },
+      ],
+      heroSteps:[
+        { n:'01', title:'Pick your trigger', desc:'Cover a 5%, 10%, or 20% BTC drop. Pay a small premium up front — that\u2019s your only cost.' },
+        { n:'02', title:'Dive in', desc:'Mint a Policy NFT onchain. Your cover descends below the storm, locked until expiry.' },
+        { n:'03', title:'Settle automatically', desc:'A DeepBook oracle confirms the price at expiry. If it crashed, you\u2019re paid in dUSDC \u2014 no claims.' },
+      ],
+      connected:s.connected, notConnected:!s.connected,
+      shortAddr:'0x7a3f…e21b',
+      onConnect:this.onConnect, onDisconnect:this.onDisconnect,
+
+      btcSpotFmt:this.fmtUsd(s.btcSpot),
+      btcChangeFmt:Math.abs(s.btcChange).toFixed(1)+'%',
+      changeColor:s.btcChange<0?'#ff7a7a':'#4ce0a8',
+      changeArrow:s.btcChange<0?'▼':'▲',
+
+      managerFmt:this.fmtD(s.managerBalance),
+      vaultAvailFmt:this.fmtD(s.vaultAvailable),
+      walletFmt:this.fmtD(s.walletBalance),
+      utilPct, utilColor,
+      utilNote: utilPct>80?'High demand — cover capacity may be limited':'Healthy — ample cover capacity available',
+
+      ambient:this.ambient, rainStreaks:this.rainStreaks,
+      activity:[
+        { who:'0x4c8…7e2a', action:'bought BTC cover', time:'just now', dot:'#4ce0a8' },
+        { who:'0x91f…02bd', action:'deposited to vault', time:'2m ago', dot:'#2ad4ff' },
+        { who:'0xa37…5e10', action:'bought BTC cover', time:'14m ago', dot:'#4ce0a8' },
+        { who:'0x2bd…99c1', action:'claimed payout', time:'1h ago', dot:'#9678ff' },
+      ],
+
+      tab:s.tab, tabCover:s.tab==='cover', tabVault:s.tab==='vault',
+      onTabCover:this.onTabCover, onTabVault:this.onTabVault,
+      coverTabStyle:tabBtn(s.tab==='cover'), vaultTabStyle:tabBtn(s.tab==='vault'),
+
+      // calc
+      calcOpen:s.calcOpen, calcClosed:!s.calcOpen, onCalcToggle:this.onCalcToggle,
+      btcHoldings:s.btcHoldings, onHoldings:this.onHoldings,
+      hasHoldings: btc>0 && portfolio>0,
+      portfolioFmt:this.fmtUsd(portfolio),
+      lossRows:[{label:'5% drop',pct:.05},{label:'10% drop',pct:.10},{label:'20% drop',pct:.20}].map(r=>({label:r.label,amt:this.fmtUsd(portfolio*r.pct)})),
+      recCover: portfolio>0?Math.min(30,Math.ceil(portfolio*0.10/10)*10):0,
+      onProtect:this.onProtect,
+
+      // cover form
+      depositOpen:s.depositOpen, onDepositToggle:this.onDepositToggle,
+      depositToggleLabel:s.depositOpen?'← Back':'+ Deposit',
+      depositAmount:s.depositAmount, onDepositInput:this.onDepositInput, onDeposit:this.onDeposit,
+      strategies:this.STRATEGIES.map(st=>({ label:st.label, sub:st.sub, onClick:()=>this.setStrategy(st), style:stratStyle(s.strategy===st.label), subColor:s.strategy===st.label?'rgba(190,235,255,.7)':'rgba(150,185,220,.5)' })),
+      triggerHint: s.triggers.length>1? s.triggers.length+' active' : 'tap to add more',
+      triggersView:this.TRIGGERS.map(t=>{ const on=s.triggers.includes(t.bps); return { label:t.label, onClick:()=>this.toggleTrigger(t.bps), style:trigStyle(on), sub: s.btcSpot>0? this.fmtUsd(this.strikeOf(t.bps)) : t.desc, subColor:on?'rgba(190,235,255,.7)':'rgba(130,170,205,.45)' }; }),
+      expiriesView,
+      expRailRef:this.expRailRef, onExpPrev:this.onExpPrev, onExpNext:this.onExpNext, onTestDive:this.onTestDive,
+      coverAmount:s.coverAmount, onCoverInput:this.onCoverInput,
+      showPayout: cover>0 && activeTriggers.length>0,
+      payoutRows: activeTriggers.map(t=>({ drop:t.drop, strike:this.fmtUsd(this.strikeOf(t.bps)), payout:this.fmtD(cover) })),
+      policiesMinted: activeTriggers.length,
+      premiumFmt:this.fmtD(totalPremium),
+      buyStyle:'width:100%;border:none;border-radius:13px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;color:#04121f;background:linear-gradient(180deg,#3fdcff,#0fa3da);box-shadow:0 0 22px -5px rgba(42,212,255,.65);transition:.15s',
+      buyLabel: activeTriggers.length>1? 'Buy '+activeTriggers.length+'-Trigger Cover Package' : 'Buy Cover',
+
+      hasPolicies:s.policies.length>0, policiesView,
+
+      // vault
+      vaultAmount:s.vaultAmount, onVaultInput:this.onVaultInput, onVaultMax:this.onVaultMax, onVaultDeposit:this.onVaultDeposit,
+      vaultStats:[
+        { label:'Your Balance', value:this.fmtD(s.walletBalance), sub:'available dUSDC', color:'#fff' },
+        { label:'Vault Position', value: s.positions.length? this.fmtD(s.positions.reduce((a,p)=>a+p.value,0)) : '—', sub:'current value', color:'#fff' },
+        { label:'PLP Share Price', value:'1.000994', sub:'grows with premiums', color:'#4ce0a8' },
+        { label:'Vault Utilization', value:utilPct+'.00%', sub:'of vault at risk', color:'#fff' },
+      ],
+      hasPositions:s.positions.length>0,
+      positionsView:s.positions.map(p=>({ value:this.fmtD(p.value), pct:p.pct.toFixed(2), short:p.id })),
+
+      valueProps:[
+        { title:'Buy Cover', desc:'Auto payout if BTC drops below strike' },
+        { title:'Earn Yield', desc:'LP to the Predict vault, earn premiums' },
+        { title:'Onchain', desc:'Oracle settles trustlessly' },
+      ],
+      howItWorks:[
+        { n:'1', title:'Calculate your exposure', desc:'Enter your BTC holdings to see exact dollar downside at 5%, 10%, 20% drops.' },
+        { n:'2', title:'Buy cover or earn yield', desc:'Buy Cover for a Policy NFT, or deposit to ShieldVault and earn LP premiums.' },
+        { n:'3', title:'Settles automatically', desc:'Oracle confirms price at expiry. Cover holders receive dUSDC instantly — no claims.' },
+      ],
+
+      // dive overlay
+      diving:s.diving, canvasRef:this.canvasRef, onSkipDive:this.onSkipDive,
+      onDismissDive:this.dismissDive,
+      dismissCursor: s.canDismiss?'pointer':'default',
+      dismissOpacity: s.canDismiss?1:0,
+      showSkip: !s.canDismiss && s.phase!=='fading',
+      overlayOpacity: s.phase==='fading'?0:1,
+      stormBgOpacity: s.bgDark?0:1, deepBgOpacity: s.bgDark?1:0,
+      vignetteOpacity: s.bgDark?1:0.3,
+      waveSlide:s.waveSlide, waveOpacity:s.waveOpacity,
+      diverTop:s.diverTop, diverAngle:s.diverAngle,
+      diverFilter: s.bgDark? 'drop-shadow(0 0 14px rgba(42,212,255,1)) drop-shadow(0 0 30px rgba(42,212,255,.55))':'drop-shadow(0 6px 10px rgba(0,0,0,.7))',
+      bubbles:this.bubbles, particles:this.particles,
+      diverBubbleTop:(s.diverTop+6).toFixed(0),
+      bubbleOpacity: s.showBubbles?1:0,
+      particleOpacity: s.showParticles?1:0,
+      msgOpacity: s.showMsg?1:0, msgShift: s.showMsg?0:18,
+      msgPrimary: s.divingType==='deposit'?'Secured in the deep':'Cover active in the deep',
+
+      hasToast: !!s.toast, toast:s.toast,
+    };
+  }
+}
+</script>
+</body>
+</html>

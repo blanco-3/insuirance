@@ -27,6 +27,7 @@ export default function Home() {
   const account = useCurrentAccount();
   const [suggestedCover, setSuggestedCover] = useState<string | undefined>();
   const [tab, setTab] = useState<"cover" | "vault">("cover");
+  const [page, setPage] = useState<"app" | "policies">("app");
   const [view, setView] = useState<"hero" | "app">("hero");
 
   function launchApp() {
@@ -75,7 +76,22 @@ export default function Home() {
             TESTNET
           </span>
         </button>
-        <ConnectButton />
+        <div className="flex items-center gap-3">
+          {account && (
+            <button
+              onClick={() => { setPage(page === "policies" ? "app" : "policies"); window.scrollTo(0, 0); }}
+              className="text-sm font-medium transition-colors"
+              style={{
+                color: page === "policies" ? "#2ad4ff" : "rgba(160,200,240,.5)",
+                borderBottom: page === "policies" ? "1px solid #2ad4ff" : "1px solid transparent",
+                paddingBottom: 2,
+              }}
+            >
+              My Cover
+            </button>
+          )}
+          <ConnectButton />
+        </div>
       </nav>
 
 
@@ -224,33 +240,42 @@ export default function Home() {
 
           {account ? (
             <>
-              <Dashboard address={account.address} />
-
-              {/* Tab switcher */}
-              <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 gap-1">
-                {(["cover", "vault"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTab(t)}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                      tab === t
-                        ? "bg-white/10 text-white"
-                        : "text-gray-500 hover:text-gray-300"
-                    }`}
-                  >
-                    {t === "cover" ? "Buy Cover" : "Earn Yield"}
-                  </button>
-                ))}
-              </div>
-
-              {tab === "cover" ? (
-                <>
-                  <HedgeCalculator onHedge={setSuggestedCover} />
-                  <CoverForm address={account.address} suggestedCover={suggestedCover} />
-                  <PolicyList address={account.address} />
-                </>
+              {page === "policies" ? (
+                <PolicyList address={account.address} />
               ) : (
-                <ShieldVault address={account.address} />
+                <>
+                  <Dashboard address={account.address} />
+
+                  {/* Tab switcher */}
+                  <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 gap-1">
+                    {(["cover", "vault"] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
+                          tab === t
+                            ? "bg-white/10 text-white"
+                            : "text-gray-500 hover:text-gray-300"
+                        }`}
+                      >
+                        {t === "cover" ? "Buy Cover" : "Earn Yield"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {tab === "cover" ? (
+                    <>
+                      <HedgeCalculator onHedge={setSuggestedCover} />
+                      <CoverForm
+                        address={account.address}
+                        suggestedCover={suggestedCover}
+                        onBought={() => { setPage("policies"); window.scrollTo(0, 0); }}
+                      />
+                    </>
+                  ) : (
+                    <ShieldVault address={account.address} />
+                  )}
+                </>
               )}
             </>
           ) : (

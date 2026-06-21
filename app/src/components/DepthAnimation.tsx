@@ -7,6 +7,8 @@ type Phase = "surface" | "diving" | "deep" | "success" | "fading";
 interface Props {
   type: "deposit" | "cover";
   onDone: () => void;
+  /** Y position of the trigger button as % of viewport height (default 60) */
+  startPct?: number;
 }
 
 // ── Wave layers (README spec: yBase kept high so waves read as surface) ──────
@@ -153,7 +155,7 @@ const BUBBLES = Array.from({ length: 12 }, (_, i) => ({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DepthAnimation({ type, onDone }: Props) {
+export function DepthAnimation({ type, onDone, startPct = 60 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const rafRef         = useRef<number>(0);
   const tRef           = useRef(0);
@@ -164,7 +166,7 @@ export function DepthAnimation({ type, onDone }: Props) {
   onDoneRef.current    = onDone;
 
   const [phase,          setPhase]          = useState<Phase>("surface");
-  const [diverTop,       setDiverTop]       = useState(8);
+  const [diverTop,       setDiverTop]       = useState(startPct);
   const [diverAngle,     setDiverAngle]     = useState(0);
   const [waveSlide,      setWaveSlide]      = useState(0);
   const [waveOpacity,    setWaveOpacity]    = useState(1);
@@ -232,36 +234,43 @@ export function DepthAnimation({ type, onDone }: Props) {
     // t=0: surface — waves full, canDismiss=false
     intTargetRef.current = 1;
 
-    // t=700: start diving
+    // t=400: diver tilts and begins plunging from button position
     push(() => {
       setPhase("diving");
-      setDiverTop(42);
-      setDiverAngle(9);
+      setDiverTop(startPct + 12);
+      setDiverAngle(12);
       intTargetRef.current = 0.62;
       setShowBubbles(true);
-      setWaveSlide(-55);
-    }, 700);
+      setWaveSlide(-40);
+    }, 400);
 
-    // t=2100: mid-water
+    // t=1400: mid-water — accelerating downward, waves fading
     push(() => {
-      setDiverTop(60);
-      setDiverAngle(5);
+      setDiverTop(startPct + 26);
+      setDiverAngle(6);
       intTargetRef.current = 0.28;
-      setWaveSlide(-150);
-      setWaveOpacity(0.4);
-    }, 2100);
+      setWaveSlide(-130);
+      setWaveOpacity(0.35);
+    }, 1400);
 
-    // t=3500: reach the deep
+    // t=2400: diver exits screen bottom — deep ocean fades in
     push(() => {
       setPhase("deep");
-      setDiverTop(62);
+      setDiverTop(115);        // off-screen below
       setDiverAngle(0);
       intTargetRef.current = 0;
       setBgDark(true);
       setShowParticles(true);
       setWaveSlide(-260);
       setWaveOpacity(0);
-    }, 3500);
+    }, 2400);
+
+    // t=3800: success message at center
+    push(() => {
+      setPhase("success");
+      setDiverTop(44);         // reappear at center for message anchor
+      setShowMsg(true);
+    }, 3800);
 
     // t=4600: success message
     push(() => {
@@ -269,10 +278,10 @@ export function DepthAnimation({ type, onDone }: Props) {
       setShowMsg(true);
     }, 4600);
 
-    // t=5500: enable dismissal — stops and waits for user
+    // t=4800: enable dismissal
     push(() => {
       setCanDismiss(true);
-    }, 5500);
+    }, 4800);
 
     return () => {
       timersRef.current.forEach(clearTimeout);

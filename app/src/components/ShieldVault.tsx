@@ -121,7 +121,7 @@ export function ShieldVault({ address }: Props) {
    * True dUSDC value of a given number of vault shares.
    * = (shares / vault_total_shares) * vault_total_plp * plp_share_price
    */
-  function sharesToDusdc(shareAmt: bigint): bigint {
+  const sharesToDusdc = (shareAmt: bigint): bigint => {
     if (!vaultOnchain || !predictSummary) return 0n;
     const { total_shares, total_plp } = vaultOnchain;
     if (total_shares === 0n || total_plp === 0n) return 0n;
@@ -131,12 +131,13 @@ export function ShieldVault({ address }: Props) {
     // dusdc_value = userPlp * plp_share_price  (share_price is a float, e.g. 1.000994)
     // Multiply by 1e6 to keep dUSDC 6-decimal precision
     const duscRaw = Number(userPlp) * predictSummary.plp_share_price;
+    if (!Number.isFinite(duscRaw) || duscRaw < 0) return 0n;
     return BigInt(Math.round(duscRaw));
-  }
+  };
 
   const userDusdcValue = sharesToDusdc(totalUserShares);
 
-  async function handleDeposit() {
+  const handleDeposit = async () => {
     setError("");
     setSuccessTx("");
     const amountRaw = BigInt(Math.round(parseFloat(amount) * 1_000_000));
@@ -175,9 +176,9 @@ export function ShieldVault({ address }: Props) {
     } catch (e: any) {
       setError(parseError(e) || "Transaction failed");
     }
-  }
+  };
 
-  async function handleWithdraw(shareId: string) {
+  const handleWithdraw = async (shareId: string) => {
     setError("");
     setSuccessTx("");
     setWithdrawingId(shareId);
@@ -201,7 +202,7 @@ export function ShieldVault({ address }: Props) {
     } finally {
       setWithdrawingId(null);
     }
-  }
+  };
 
   // Total return since vault inception (share price starts at 1.0)
   // e.g. plp_share_price = 1.000994 → +0.099% total earned so far

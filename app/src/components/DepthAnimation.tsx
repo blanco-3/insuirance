@@ -400,10 +400,9 @@ export function DepthAnimation({ type, onDone }: Props) {
         className="absolute left-0 right-0 flex flex-col items-center gap-3 pointer-events-none"
         style={{
           top: `calc(${diverTop}% - 58px)`,
-          transition: "top 2700ms cubic-bezier(0.3,0,0.25,1)",
           opacity: showMsg ? 1 : 0,
           transform: showMsg ? "translateY(0)" : "translateY(10px)",
-          transition: "opacity 900ms ease, transform 900ms ease",
+          transition: "top 2700ms cubic-bezier(0.3,0,0.25,1), opacity 900ms ease, transform 900ms ease",
         }}
       >
         <div className="flex items-center gap-5">
